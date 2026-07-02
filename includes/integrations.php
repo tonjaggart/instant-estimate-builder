@@ -96,3 +96,7 @@ add_action('admin_init', function () {
     );
 
 });
+
+add_filter('option_page_capability_hgm_integrations_settings', function () {
+    return 'edit_posts';
+});

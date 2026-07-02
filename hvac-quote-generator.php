@@ -242,7 +242,7 @@ add_action('admin_menu', function() {
         IEB_ADMIN_MENU_SLUG,       // Parent slug
         'Integrations',              // Page title
         'Integrations',              // Menu title
-        'manage_options',            // Capability
+        'edit_posts',                // Capability
         'instant-estimate-integrations', // Menu slug
         'hgm_render_integrations_page' // Callback function
     );

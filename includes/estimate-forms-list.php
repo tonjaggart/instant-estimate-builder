@@ -26,7 +26,7 @@ function ieb_render_estimate_forms_page() {
     echo '<h1>Instant Estimate Forms</h1>';
     echo '<p class="hgm-dashboard-subtitle">Manage the instant estimate forms you use to capture local-service leads.</p>';
     echo '<div class="hgm-dashboard-actions">';
-    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=instant_quote_form')) . '" class="button button-primary hgm-button-primary">Add New Estimate Form</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-form')) . '" class="button button-primary hgm-button-primary">Add New Estimate Form</a>';
     echo '<a href="' . esc_url(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG)) . '" class="button hgm-button-secondary">Back To Dashboard</a>';
     echo '</div>';
     echo '</section>';
@@ -42,7 +42,7 @@ function ieb_render_estimate_forms_page() {
 
     if (empty($forms)) {
         echo '<p>No estimate forms found yet.</p>';
-        echo '<a href="' . esc_url(admin_url('post-new.php?post_type=instant_quote_form')) . '" class="button button-primary hgm-button-primary">Create Your First Estimate Form</a>';
+        echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-form')) . '" class="button button-primary hgm-button-primary">Create Your First Estimate Form</a>';
         echo '</div></div>';
         return;
     }

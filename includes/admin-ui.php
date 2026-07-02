@@ -25,10 +25,11 @@ function hgm_render_estimate_form_editor_header($post)
     }
 
     $form_id = absint($post->ID);
+    $is_new_form = $post->post_status === 'auto-draft' || basename($_SERVER['PHP_SELF']) === 'post-new.php';
     $title = get_the_title($form_id) ?: 'Untitled';
     $header_title = preg_match('/estimate\s+form$/i', $title) ? $title : $title . ' Estimate Form';
     $forms_url = admin_url('admin.php?page=instant-estimate-forms');
-    $new_url = admin_url('post-new.php?post_type=instant_quote_form');
+    $new_url = admin_url('admin.php?page=instant-estimate-form');
     $preview_url = add_query_arg(
         [
             'quote_form_preview' => 1,
@@ -39,14 +40,25 @@ function hgm_render_estimate_form_editor_header($post)
     ?>
     <section class="hgm-dashboard-hero ieb-edit-hero">
         <div class="hgm-dashboard-eyebrow">Estimate Form Editor</div>
-        <h1>Edit <?php echo esc_html($header_title); ?></h1>
+        <?php if ($is_new_form) : ?>
+            <h1>Create a New Instant Estimate Form</h1>
+        <?php else : ?>
+            <h1>Edit <?php echo esc_html($header_title); ?></h1>
+        <?php endif; ?>
         <p class="hgm-dashboard-subtitle">Customize the form name, brand color, email subject line, shortcode embed, lead questions, and Klaviyo integration settings.</p>
         <div class="hgm-dashboard-actions">
             <a href="<?php echo esc_url($forms_url); ?>" class="button hgm-button-secondary">Back To Estimate Forms</a>
-            <a href="<?php echo esc_url($preview_url); ?>" target="_blank" rel="noopener" class="button hgm-button-secondary">Preview Form</a>
-            <a href="<?php echo esc_url($new_url); ?>" class="button button-primary hgm-button-primary">Add New Estimate Form</a>
+            <?php if (!$is_new_form) : ?>
+                <a href="<?php echo esc_url($preview_url); ?>" target="_blank" rel="noopener" class="button hgm-button-secondary">Preview Form</a>
+                <a href="<?php echo esc_url($new_url); ?>" class="button button-primary hgm-button-primary">Add New Estimate Form</a>
+            <?php endif; ?>
         </div>
     </section>
+    <?php if ($is_new_form) : ?>
+        <script>
+            window.history.replaceState(null, '', '<?php echo esc_js(admin_url('admin.php?page=instant-estimate-form')); ?>');
+        </script>
+    <?php endif; ?>
     <?php
 }
 

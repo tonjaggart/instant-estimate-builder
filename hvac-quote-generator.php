@@ -57,6 +57,11 @@ add_action('admin_init', function () {
         exit;
     }
 
+    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-form') {
+        wp_safe_redirect(admin_url('post-new.php?post_type=instant_quote_form'));
+        exit;
+    }
+
     if (isset($_GET['post_type']) && $_GET['post_type'] === 'instant_quote_form' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
         wp_safe_redirect(admin_url('admin.php?page=instant-estimate-forms'));
         exit;
@@ -140,7 +145,8 @@ add_action('admin_menu', function() {
         'Add New Estimate Form',
         'Add New Estimate Form',
         'manage_options',
-        'post-new.php?post_type=instant_quote_form'
+        'instant-estimate-form',
+        '__return_null'
     );
 
     // Email Settings (Standalone still)

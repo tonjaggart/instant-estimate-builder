@@ -25,7 +25,8 @@ function hgm_render_estimate_form_editor_header($post)
     }
 
     $form_id = absint($post->ID);
-    $title = get_the_title($form_id) ?: 'Untitled Estimate Form';
+    $title = get_the_title($form_id) ?: 'Untitled';
+    $header_title = preg_match('/estimate\s+form$/i', $title) ? $title : $title . ' Estimate Form';
     $forms_url = admin_url('admin.php?page=instant-estimate-forms');
     $new_url = admin_url('post-new.php?post_type=instant_quote_form');
     $preview_url = add_query_arg(
@@ -38,8 +39,8 @@ function hgm_render_estimate_form_editor_header($post)
     ?>
     <section class="hgm-dashboard-hero ieb-edit-hero">
         <div class="hgm-dashboard-eyebrow">Estimate Form Editor</div>
-        <h1>Edit Estimate Form</h1>
-        <p class="hgm-dashboard-subtitle">Update <?php echo esc_html($title); ?> settings, embed shortcode, and builder questions in one place.</p>
+        <h1>Edit <?php echo esc_html($header_title); ?></h1>
+        <p class="hgm-dashboard-subtitle">Customize the form name, brand color, email subject line, shortcode embed, lead questions, and Klaviyo integration settings.</p>
         <div class="hgm-dashboard-actions">
             <a href="<?php echo esc_url($forms_url); ?>" class="button hgm-button-secondary">Back To Estimate Forms</a>
             <a href="<?php echo esc_url($preview_url); ?>" target="_blank" rel="noopener" class="button hgm-button-secondary">Preview Form</a>

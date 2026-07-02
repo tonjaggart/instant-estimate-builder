@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         // Inject selected options into hidden input before submit
-        $('#multiStepForm').on('submit', function (e) {
+        $('#multiStepForm').on('submit', async function (e) {
             console.log('🚀 Submit handler triggered');
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -238,6 +238,20 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             $('#hgmFormData').val(JSON.stringify(formData));
+
+            // Refresh the nonce immediately before final submit so cached pages do not
+            // send an expired nonce from old localized HTML.
+            try {
+                const nonceResponse = await $.post(hgm_ajax.ajax_url, {
+                    action: 'hgm_get_quote_nonce'
+                });
+
+                if (nonceResponse && nonceResponse.success && nonceResponse.data && nonceResponse.data.nonce) {
+                    hgm_ajax.nonce = nonceResponse.data.nonce;
+                }
+            } catch (nonceError) {
+                console.warn('Could not refresh form nonce; submitting with localized nonce.', nonceError);
+            }
 
             // ✅ Now trigger AJAX
             $.post(hgm_ajax.ajax_url, {

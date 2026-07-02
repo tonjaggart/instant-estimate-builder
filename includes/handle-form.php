@@ -11,6 +11,15 @@ add_action('updated_postmeta', function($meta_id, $post_id, $meta_key, $meta_val
 
 add_action('wp_ajax_hgm_submit_quote_form', 'hgm_submit_quote_form');
 add_action('wp_ajax_nopriv_hgm_submit_quote_form', 'hgm_submit_quote_form');
+add_action('wp_ajax_hgm_get_quote_nonce', 'hgm_get_quote_nonce');
+add_action('wp_ajax_nopriv_hgm_get_quote_nonce', 'hgm_get_quote_nonce');
+
+function hgm_get_quote_nonce() {
+    nocache_headers();
+    wp_send_json_success([
+        'nonce' => wp_create_nonce('hgm_nonce'),
+    ]);
+}
 
 function hgm_send_to_klaviyo($lead_id, $form_id, $first_name, $email, $phone, $form_title, $estimate_low, $estimate_high) {
 
@@ -406,11 +415,18 @@ function hgm_submit_quote_form() {
         $edit_link = admin_url('admin.php?page=hgm_view_lead&id=' . $lead_id);
 
         // ✅ Build the SMS body
+        // Use the sanitized submit value first, then fall back to saved lead meta.
+        // Label each line so email-to-SMS gateways do not make the customer name look missing.
+        $first_name_for_sms = trim($first_name);
+        if ($first_name_for_sms === '') {
+            $first_name_for_sms = trim((string) get_post_meta($lead_id, 'first_name', true));
+        }
+
         $sms_body  = "New " . $form_title . " Estimate:\n";
-        $sms_body .= "{$first_name}\n";
-        $sms_body .= "{$phone}\n";
-        $sms_body .= "{$zip_code}\n";
-        $sms_body .= "{$estimate_low} - {$estimate_high}\n";
+        $sms_body .= "Name: {$first_name_for_sms}\n";
+        $sms_body .= "Phone: {$phone}\n";
+        $sms_body .= "ZIP: {$zip_code}\n";
+        $sms_body .= "Estimate: {$estimate_low} - {$estimate_high}\n";
         //$sms_body .= $edit_link;
 
         foreach ($sms_recipients as $recipient) {

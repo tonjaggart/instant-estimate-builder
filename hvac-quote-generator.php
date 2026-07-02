@@ -96,6 +96,16 @@ add_action('admin_menu', function() {
         25
     );
 
+    // Dashboard submenu label for the top-level plugin page.
+    add_submenu_page(
+        'hgm_quote_generator',
+        'Dashboard',
+        'Dashboard',
+        'manage_options',
+        'hgm_quote_generator',
+        'hgm_render_dashboard_page'
+    );
+
     // CPT: Estimate Forms
     add_submenu_page(
         'hgm_quote_generator',

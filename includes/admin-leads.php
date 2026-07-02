@@ -100,6 +100,46 @@ add_action('admin_enqueue_scripts', function ($hook) {
     }
 });
 
+function ieb_get_lead_search_ids($search) {
+    global $wpdb;
+
+    $search = trim((string) $search);
+    if ($search === '') {
+        return [];
+    }
+
+    $like = '%' . $wpdb->esc_like($search) . '%';
+    $digits = preg_replace('/\D+/', '', $search);
+    $phone_digits_sql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(pm.meta_value, ' ', ''), '-', ''), '(', ''), ')', ''), '.', ''), '+', '')";
+
+    $where_parts = [
+        $wpdb->prepare('p.post_title LIKE %s', $like),
+        $wpdb->prepare("(pm.meta_key IN ('first_name', 'email', 'zip_code') AND pm.meta_value LIKE %s)", $like),
+        $wpdb->prepare("(pm.meta_key = 'phone' AND pm.meta_value LIKE %s)", $like),
+    ];
+
+    if ($digits !== '') {
+        $digits_like = '%' . $wpdb->esc_like($digits) . '%';
+        $where_parts[] = $wpdb->prepare("(pm.meta_key = 'phone' AND {$phone_digits_sql} LIKE %s)", $digits_like);
+        $where_parts[] = $wpdb->prepare("(pm.meta_key = 'zip_code' AND pm.meta_value LIKE %s)", $digits_like);
+    }
+
+    $where_sql = implode(' OR ', $where_parts);
+
+    $ids = $wpdb->get_col(
+        "SELECT DISTINCT p.ID
+         FROM {$wpdb->posts} p
+         LEFT JOIN {$wpdb->postmeta} pm
+            ON p.ID = pm.post_id
+            AND pm.meta_key IN ('first_name', 'email', 'phone', 'zip_code')
+         WHERE p.post_type = 'hgm_lead'
+            AND p.post_status = 'publish'
+            AND ({$where_sql})"
+    );
+
+    return array_map('intval', $ids ?: []);
+}
+
 function ieb_render_leads_page() {
     $paged = isset($_GET['paged']) ? max(1, absint($_GET['paged'])) : 1;
     $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
@@ -115,7 +155,8 @@ function ieb_render_leads_page() {
     ];
 
     if ($search !== '') {
-        $query_args['s'] = $search;
+        $matching_ids = ieb_get_lead_search_ids($search);
+        $query_args['post__in'] = !empty($matching_ids) ? $matching_ids : [0];
     }
 
     $leads_query = new WP_Query($query_args);
@@ -160,7 +201,7 @@ function ieb_render_leads_page() {
     echo '</div>';
     echo '<form method="get" class="ieb-leads-search">';
     echo '<input type="hidden" name="page" value="instant-estimate-leads" />';
-    echo '<input type="search" name="s" value="' . esc_attr($search) . '" placeholder="Search leads" />';
+    echo '<input type="search" name="s" value="' . esc_attr($search) . '" placeholder="Search name, email, phone, or ZIP" />';
     echo '<button type="submit" class="button hgm-button-secondary">Search</button>';
     if ($search !== '') {
         echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-leads')) . '" class="button hgm-button-secondary">Clear</a>';

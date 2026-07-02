@@ -1,0 +1,441 @@
+<?php
+// Exit if accessed directly
+if (!defined('ABSPATH')) {
+    exit;
+}
+add_action('updated_postmeta', function($meta_id, $post_id, $meta_key, $meta_value) {
+    if (in_array($meta_key, ['_hgm_estimate_low', '_hgm_estimate_high'])) {
+        error_log("META UPDATED: post_id=$post_id, meta_key=$meta_key, meta_value=" . print_r($meta_value, true));
+    }
+}, 10, 4);
+
+add_action('wp_ajax_hgm_submit_quote_form', 'hgm_submit_quote_form');
+add_action('wp_ajax_nopriv_hgm_submit_quote_form', 'hgm_submit_quote_form');
+
+function hgm_send_to_klaviyo($lead_id, $form_id, $first_name, $email, $phone, $form_title, $estimate_low, $estimate_high) {
+
+    // ======================
+    // DEBUG MODE CHECK
+    // ======================
+    $hgm_debug = defined('WP_DEBUG') && WP_DEBUG;
+
+    // ======================
+    // BASIC SAFETY CHECKS
+    // ======================
+
+    // Get Klaviyo API key from Integrations settings
+    $api_key = get_option('hgm_klaviyo_api_key');
+
+    if (empty($api_key)) {
+        error_log('Klaviyo skipped: Missing API key');
+        return;
+    }
+
+    // Check if Klaviyo is enabled for this specific form
+    $klaviyo_enabled = get_post_meta($form_id, 'hgm_enable_klaviyo', true);
+
+    if (!$klaviyo_enabled) {
+        error_log('Klaviyo skipped: Not enabled for this form');
+        return;
+    }
+
+    // Get the Klaviyo List ID assigned to this form
+    $list_id = get_post_meta($form_id, 'hgm_klaviyo_list_id', true);
+
+    if (empty($list_id)) {
+        error_log('Klaviyo skipped: Missing list ID');
+        return;
+    }
+
+    if ($hgm_debug) {
+        error_log('Klaviyo ready to send for lead ID: ' . $lead_id);
+    }
+
+    // ======================
+    // NORMALIZE PHONE
+    // ======================
+
+    // Remove anything that is not a digit
+    $clean_phone = preg_replace('/\D/', '', $phone);
+
+    // Convert 10-digit US number to E.164 format
+    if (strlen($clean_phone) === 10) {
+        $clean_phone = '+1' . $clean_phone;
+    } else {
+        $clean_phone = '';
+    }
+
+    // ======================
+    // DEBUG PAYLOAD
+    // ======================
+
+    $payload = [
+        'email'         => $email,
+        'first_name'    => $first_name,
+        'phone'         => $clean_phone,
+        'form_name'     => $form_title,
+        'estimate_low'  => $estimate_low,
+        'estimate_high' => $estimate_high,
+    ];
+
+    if ($hgm_debug) {
+        error_log('Klaviyo payload: ' . print_r($payload, true));
+    }
+
+    // ======================
+    // CREATE PROFILE
+    // ======================
+
+    $profile_response = wp_remote_post('https://a.klaviyo.com/api/profiles/', [
+        'headers' => [
+            'Authorization' => 'Klaviyo-API-Key ' . $api_key,
+            'Content-Type'  => 'application/json',
+            'revision'      => '2023-10-15',
+        ],
+        'body' => wp_json_encode([
+            'data' => [
+                'type' => 'profile',
+                'attributes' => [
+                    'email'        => $email,
+                    'first_name'   => $first_name,
+                    'phone_number' => $clean_phone,
+                    'properties'   => [
+                        'Form Name'     => $form_title,
+                        'Estimate Low'  => $estimate_low,
+                        'Estimate High' => $estimate_high,
+                    ],
+                ],
+            ],
+        ]),
+        'timeout' => 20,
+    ]);
+
+    if (is_wp_error($profile_response)) {
+        error_log('Klaviyo profile request error: ' . $profile_response->get_error_message());
+        return;
+    }
+
+    $profile_status = wp_remote_retrieve_response_code($profile_response);
+    $profile_body_raw = wp_remote_retrieve_body($profile_response);
+    $profile_body = json_decode($profile_body_raw, true);
+
+    if ($hgm_debug) {
+        error_log('Klaviyo profile response status: ' . $profile_status);
+    }
+
+    $profile_id = '';
+
+    // New profile created successfully
+    if (!empty($profile_body['data']['id'])) {
+        $profile_id = $profile_body['data']['id'];
+        error_log('Klaviyo profile created. Profile ID: ' . $profile_id);
+    }
+
+    // Existing profile found. Klaviyo returns duplicate_profile_id on 409.
+    if (empty($profile_id) && $profile_status === 409 && !empty($profile_body['errors'][0]['meta']['duplicate_profile_id'])) {
+        $profile_id = $profile_body['errors'][0]['meta']['duplicate_profile_id'];
+        error_log('Klaviyo duplicate profile found. Using existing Profile ID: ' . $profile_id);
+    }
+
+    // Stop if no profile ID was found
+    if (empty($profile_id)) {
+        error_log('Klaviyo profile failed. Response: ' . print_r($profile_body, true));
+        return;
+    }
+
+    // ======================
+    // ADD PROFILE TO LIST
+    // ======================
+
+    $list_response = wp_remote_post("https://a.klaviyo.com/api/lists/{$list_id}/relationships/profiles/", [
+        'headers' => [
+            'Authorization' => 'Klaviyo-API-Key ' . $api_key,
+            'Content-Type'  => 'application/json',
+            'revision'      => '2023-10-15',
+        ],
+        'body' => wp_json_encode([
+            'data' => [
+                [
+                    'type' => 'profile',
+                    'id'   => $profile_id,
+                ],
+            ],
+        ]),
+        'timeout' => 20,
+    ]);
+
+    if (is_wp_error($list_response)) {
+        error_log('Klaviyo list request error: ' . $list_response->get_error_message());
+        return;
+    }
+
+    $list_status = wp_remote_retrieve_response_code($list_response);
+    $list_body = wp_remote_retrieve_body($list_response);
+
+    if ($hgm_debug) {
+        error_log('Klaviyo list response status: ' . $list_status);
+        error_log('Klaviyo list response body: ' . $list_body);
+    }
+
+    if ($list_status >= 200 && $list_status < 300) {
+        error_log('Klaviyo SUCCESS: Lead added to list. Profile ID: ' . $profile_id);
+    } else {
+        error_log('Klaviyo list add failed. Status: ' . $list_status . ' Body: ' . $list_body);
+    }
+}
+
+require_once HGM_PLUGIN_PATH . 'includes/email-template-customer.php';
+
+function hgm_submit_quote_form() {
+
+    // ✅ Nonce verification (MUST be first)
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'hgm_nonce')) {
+        error_log('HGM AJAX: Nonce verification failed');
+        wp_send_json_error(['message' => 'Nonce verification failed.']);
+    }
+
+    // Sanitize fields
+    $first_name = sanitize_text_field($_POST['first_name'] ?? '');
+    $email      = sanitize_email($_POST['email'] ?? '');
+    $phone      = sanitize_text_field($_POST['phone'] ?? '');
+    $zip_code   = sanitize_text_field($_POST['zip_code'] ?? '');
+
+    $form_data_json = stripslashes($_POST['_hgm_form_data'] ?? '');
+    $form_data = json_decode($form_data_json, true);
+
+    $low_total = 0;
+    $high_total = 0;
+
+    if (is_array($form_data)) {
+        foreach ($form_data as $step) {
+            $low_total += isset($step['min']) && is_numeric($step['min']) ? floatval($step['min']) : 0;
+            $high_total += isset($step['max']) && is_numeric($step['max']) ? floatval($step['max']) : 0;
+        }
+    }
+
+    $errors = [];
+
+    if (empty($first_name)) $errors['first_name'] = 'First name is required.';
+    if (empty($email) || !is_email($email)) $errors['email'] = 'A valid email is required.';
+    if (empty($phone)) $errors['phone'] = 'Phone number is required.';
+    if (empty($zip_code)) $errors['zip_code'] = 'Zip code is required.';
+
+    if (!empty($errors)) {
+        error_log('HGM AJAX: Validation failed - ' . json_encode($errors));
+        wp_send_json_error(['errors' => $errors]);
+    }
+
+    // Create a new lead post
+    $lead_id = wp_insert_post([
+        'post_type'   => 'hgm_lead',
+        'post_title'  => $first_name,
+        'post_status' => 'publish',
+    ]);
+
+    $form_id = isset($_POST['form_id']) ? intval($_POST['form_id']) : 0;
+    if ($form_id) {
+        update_post_meta($lead_id, '_hgm_form_id', $form_id);
+    }
+
+    if (isset($_POST['_hgm_form_data'])) {
+        update_post_meta($lead_id, '_hgm_form_data', wp_unslash($_POST['_hgm_form_data']));
+    }
+
+    if (is_wp_error($lead_id)) {
+        wp_send_json_error(['message' => 'Failed to save lead.']);
+        wp_die();
+    }
+
+    update_post_meta($lead_id, 'first_name', $first_name);
+    update_post_meta($lead_id, 'email', $email);
+    update_post_meta($lead_id, 'phone', $phone);
+    update_post_meta($lead_id, 'zip_code', $zip_code);
+    update_post_meta($lead_id, 'created_at', current_time('mysql'));
+
+
+    // Save estimate totals meta (without sanitizing to preserve $)
+    update_post_meta($lead_id, '_hgm_estimate_low', '$' . number_format(floatval($low_total), 0));
+    update_post_meta($lead_id, '_hgm_estimate_high', '$' . number_format(floatval($high_total), 0));
+
+    // Confirm meta saved correctly
+    $check_low = get_post_meta($lead_id, '_hgm_estimate_low', true);
+    $check_high = get_post_meta($lead_id, '_hgm_estimate_high', true);
+
+    $quote_form_id = get_post_meta($lead_id, '_hgm_form_id', true);
+    $form_title = get_the_title($quote_form_id);
+
+
+    // ======================
+    // KLAVIYO INTEGRATION
+    // ======================
+    hgm_send_to_klaviyo(
+        $lead_id,
+        $form_id,
+        $first_name,
+        $email,
+        $phone,
+        $form_title,
+        $low_total,
+        $high_total
+    );
+
+    // --- Email sending starts here ---
+
+    // Load email settings
+    $email_settings = get_option('hgm_email_settings', []);
+    $reply_to = sanitize_email($email_settings['reply_to'] ?? get_bloginfo('admin_email'));
+    $primary_color = sanitize_hex_color($email_settings['primary_color'] ?? '#013c55');
+
+    // Email recipient and subject for customer
+    $to = $email;
+    // Get form-specific subject
+    $form_id = isset($_POST['form_id']) ? intval($_POST['form_id']) : 0;
+    $form_subject = $form_id ? trim(get_post_meta($form_id, 'hgm_email_subject', true)) : '';
+
+    // Default subject (WITHOUT name or dash)
+    $default_subject = 'Your HVAC Estimate is Ready!';
+
+    // Use custom subject if it exists, otherwise fallback
+    $subject_text = !empty($form_subject) ? $form_subject : $default_subject;
+
+    // ALWAYS prepend first name + dash
+    $subject = $first_name . ' - ' . $subject_text;
+
+    $lead_id = (int) $lead_id;
+
+    $visitor_email_message = hgm_get_customer_email_html($lead_id);
+
+
+    $headers = [];
+
+    if (!empty($reply_to)) {
+        $headers[] = 'Reply-To: ' . $reply_to;
+    }
+
+    $headers[] = 'Content-Type: text/html; charset=UTF-8';
+
+    // Send email to customer
+    $mail_sent = wp_mail($to, $subject, $visitor_email_message, $headers);
+
+    if (!$mail_sent) {
+        error_log('HGM AJAX: Customer email sending failed for lead ID ' . $lead_id);
+    } else {
+        error_log('HGM AJAX: Customer email sent successfully for lead ID ' . $lead_id);
+    }
+
+    // Get sales team emails as CSV string from settings
+    $email_settings = get_option('hgm_email_settings', []);
+    $sales_team_emails = sanitize_textarea_field($email_settings['sales_team_emails'] ?? '');
+    $sales_emails_array = array_filter(array_map('trim', explode(',', $sales_team_emails)));
+
+
+    $quote_table_html = '';
+
+    if (is_array($form_data)) {
+        $quote_table_html .= '<table style="width:100%; border-collapse:collapse; font-family: sans-serif;">';
+        $quote_table_html .= '<thead><tr><th style="text-align:left; border-bottom:1px solid #ccc; padding:8px;">Question</th><th style="text-align:left; border-bottom:1px solid #ccc; padding:8px;">Answer</th></tr></thead><tbody>';
+
+        $step_index = 1;
+
+        foreach ($form_data as $step_data) {
+            $question_title = 'Step ' . $step_index;
+
+            // If matching step exists in the quote form structure, use its title
+            if (!empty($quote_form_data[$step_index - 1]['title'])) {
+                $question_title = esc_html($quote_form_data[$step_index - 1]['title']);
+            }
+
+            $answer = isset($step_data['label']) ? esc_html($step_data['label']) : '-';
+
+            $quote_table_html .= '<tr>';
+            $quote_table_html .= '<td style="padding:8px; border-bottom:1px solid #eee;">' . $question_title . '</td>';
+            $quote_table_html .= '<td style="padding:8px; border-bottom:1px solid #eee;">' . $answer . '</td>';
+            $quote_table_html .= '</tr>';
+
+            $step_index++;
+        }
+
+        $quote_table_html .= '</tbody></table>';
+    }
+
+    if (!empty($sales_emails_array)) {
+
+        $sales_email_data = [
+            'date'             => date('F j, Y g:i a'),
+            'first_name'       => $first_name,
+            'email'            => $email,
+            'phone'            => $phone,
+            'zip_code'         => $zip_code,
+            'quote_table_html' => $quote_table_html,
+        ];
+
+        extract($sales_email_data); // ✅ Move this above the include
+
+        ob_start();
+        $quote_form_id = get_post_meta($lead_id, '_hgm_form_id', true); // Retrieve saved form ID
+        include HGM_PLUGIN_PATH . 'includes/email-template-sales.php'; // ✅ This template expects extracted vars
+        $sales_email_message = ob_get_clean();
+
+        $subject_sales = $first_name . ' - New ' . $form_title . ' Estimate Lead';
+
+        $headers = ['Content-Type: text/html; charset=UTF-8'];
+        if (!empty($email_settings['reply_to'])) {
+            $headers[] = 'Reply-To: ' . sanitize_email($email_settings['reply_to']);
+        }
+
+        foreach ($sales_emails_array as $sales_email) {
+            $result = wp_mail($sales_email, $subject_sales, $sales_email_message, $headers);
+            if (!$result) {
+                error_log("HGM SALES EMAIL FAILED: $sales_email");
+            } else {
+                error_log("HGM SALES EMAIL SENT: $sales_email");
+            }
+        }
+    }
+    // ✅ Text Message Notifications
+    $sms_settings = get_option('hgm_notification_settings', []);
+    $sms_recipients = $sms_settings['sms_recipients'] ?? [];
+
+    if (!empty($sms_recipients) && is_array($sms_recipients)) {
+        $headers[] = 'Content-Type: text/plain; charset=UTF-8';
+        $sms_subject = ''; // Subject not needed for SMS
+        $estimate_low = get_post_meta($lead_id, '_hgm_estimate_low', true);
+        $estimate_high = get_post_meta($lead_id, '_hgm_estimate_high', true);
+
+        // ✅ Correct edit link for the custom view page
+        $edit_link = admin_url('admin.php?page=hgm_view_lead&id=' . $lead_id);
+
+        // ✅ Build the SMS body
+        $sms_body  = "New " . $form_title . " Estimate:\n";
+        $sms_body .= "{$first_name}\n";
+        $sms_body .= "{$phone}\n";
+        $sms_body .= "{$zip_code}\n";
+        $sms_body .= "{$estimate_low} - {$estimate_high}\n";
+        //$sms_body .= $edit_link;
+
+        foreach ($sms_recipients as $recipient) {
+            $clean_phone = preg_replace('/\D/', '', $recipient['phone'] ?? '');
+            $carrier = sanitize_text_field($recipient['carrier'] ?? '');
+
+            $carrier_domains = [
+                'verizon'     => '@vtext.com',
+                'att'         => '@txt.att.net',
+                'tmobile'     => '@tmomail.net',
+                'sprint'      => '@messaging.sprintpcs.com',
+                'uscellular'  => '@email.uscc.net',
+            ];
+
+            if (strlen($clean_phone) === 10 && isset($carrier_domains[$carrier])) {
+                $to_sms = $clean_phone . $carrier_domains[$carrier];
+                $headers = ['Content-Type: text/plain; charset=UTF-8'];
+
+                $sent = wp_mail($to_sms, $sms_subject, $sms_body, $headers);
+                error_log($sent ? "📬 SMS SENT to $to_sms" : "❌ SMS FAILED to $to_sms");
+            }
+        }
+    }
+    wp_send_json_success([
+        'message' => 'Estimate submitted successfully'
+    ]);
+    wp_die();
+}

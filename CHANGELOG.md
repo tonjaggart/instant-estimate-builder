@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.9 - Main plugin file rename
+
+- Renamed the main plugin file from `hvac-quote-generator.php` to `instant-estimate-builder.php` for a fully clean public plugin identity.
+- Preserved existing data compatibility identifiers, post types, shortcodes, and admin slugs so existing forms/leads continue working.
+
 ## 1.0.8 - Fresh plugin identity
 
 - Updated the GitHub updater slug to `instant-estimate-builder` for clean new installs.

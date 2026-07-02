@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Instant Estimate Builder
  * Description: Build customizable multi-step instant estimate forms for local service businesses with lead capture, notifications, and lead management.
- * Version: 1.0.8
+ * Version: 1.0.9
  * Author: Taggart Media Group
  * Author URI: https://taggartmediagroup.com
  * License: GPL-2.0-or-later

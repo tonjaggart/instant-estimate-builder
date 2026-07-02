@@ -775,7 +775,7 @@ function hgm_enqueue_color_picker($hook_suffix) {
     wp_enqueue_style('wp-color-picker');
     wp_enqueue_script(
         'hgm-color-picker-init',
-        plugins_url('assets/color-picker-init.js', dirname(__FILE__, 2) . '/hvac-quote-generator.php'),
+        plugin_dir_url(dirname(__FILE__)) . 'assets/color-picker-init.js',
         ['wp-color-picker'],
         false,
         true

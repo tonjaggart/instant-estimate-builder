@@ -37,32 +37,32 @@ function hgm_render_dashboard_page() {
 
     echo '<div class="hgm-dashboard-card hgm-dashboard-card-stats">';
     echo '<div class="hgm-card-label">Lead Snapshot</div>';
-    echo '<h2>Recent performance</h2>';
+    echo '<h2>Recent Performance</h2>';
     echo '<div class="hgm-stat-grid">';
     echo '<div class="hgm-stat-box"><span>Today</span><strong>' . esc_html($lead_counts['today']) . '</strong></div>';
-    echo '<div class="hgm-stat-box"><span>Last 7 days</span><strong>' . esc_html($lead_counts['week']) . '</strong></div>';
-    echo '<div class="hgm-stat-box"><span>Last 30 days</span><strong>' . esc_html($lead_counts['month']) . '</strong></div>';
+    echo '<div class="hgm-stat-box"><span>Last 7 Days</span><strong>' . esc_html($lead_counts['week']) . '</strong></div>';
+    echo '<div class="hgm-stat-box"><span>Last 30 Days</span><strong>' . esc_html($lead_counts['month']) . '</strong></div>';
     echo '</div>';
-    echo '<a href="' . esc_url(admin_url('edit.php?post_type=hgm_lead')) . '" class="hgm-text-link">Open lead inbox →</a>';
+    echo '<a href="' . esc_url(admin_url('edit.php?post_type=hgm_lead')) . '" class="hgm-text-link">Open Lead Inbox →</a>';
     echo '</div>';
 
     echo '<div class="hgm-dashboard-card">';
     echo '<div class="hgm-card-label">Builder</div>';
-    echo '<h2>Manage estimate forms</h2>';
+    echo '<h2>Manage Estimate Forms</h2>';
     echo '<p>Build forms for windows, roofing, HVAC, plumbing, landscaping, pest control, and other local-service offers.</p>';
     echo '<div class="hgm-link-list">';
-    echo '<a href="' . esc_url(admin_url('edit.php?post_type=instant_quote_form')) . '">Manage estimate forms</a>';
-    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=instant_quote_form')) . '">Add new estimate form</a>';
-    echo '<a href="' . esc_url(admin_url('admin.php?page=hgm-notifications-settings')) . '">Notification settings</a>';
-    echo '<a href="' . esc_url(admin_url('admin.php?page=hgm-email-settings')) . '">Email settings</a>';
+    echo '<a href="' . esc_url(admin_url('edit.php?post_type=instant_quote_form')) . '">Manage Estimate Forms</a>';
+    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=instant_quote_form')) . '">Add New Estimate Form</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=hgm-notifications-settings')) . '">Notification Settings</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=hgm-email-settings')) . '">Email Settings</a>';
     echo '</div>';
     echo '</div>';
 
     echo '<div class="hgm-dashboard-card hgm-dashboard-card-cta">';
-    echo '<div class="hgm-card-label">Done-for-you setup</div>';
-    echo '<h2>Want us to set this up?</h2>';
-    echo '<p>Taggart Media Group can configure your services, estimate ranges, notifications, styling, and test the full form.</p>';
-    echo '<div class="hgm-price-pill">One-time setup: $299</div>';
+    echo '<div class="hgm-card-label">Done-For-You Setup</div>';
+    echo '<h2>Let Us Build Your First Estimate Form</h2>';
+    echo '<p>Want the plugin ready faster? Taggart Media Group can set up your services, pricing ranges, notifications, and styling so you can start capturing estimate-ready leads.</p>';
+    echo '<div class="hgm-price-pill">One-Time Setup: $299</div>';
     echo '<a href="https://taggartmediagroup.com/" target="_blank" rel="noopener" class="button button-primary hgm-button-primary">Get Setup Help</a>';
     echo '<p class="hgm-dashboard-note">Plugin stays free. Setup help is optional.</p>';
     echo '</div>';

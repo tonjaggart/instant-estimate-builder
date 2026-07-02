@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8 - Fresh plugin identity
+
+- Updated the GitHub updater slug to `instant-estimate-builder` for clean new installs.
+- Kept legacy plugin-information compatibility for old `hvac-quote-generator` update-detail requests.
+
 ## 1.0.7 - Admin polish and public release prep
 
 - Added GPL-2.0-or-later license metadata for public distribution and future WordPress.org compatibility.

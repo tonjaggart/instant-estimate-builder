@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Instant Estimate Builder
  * Description: Build customizable multi-step instant estimate forms for local service businesses with lead capture, notifications, and lead management.
- * Version: 1.0.7
+ * Version: 1.0.8
  * Author: Taggart Media Group
  * Author URI: https://taggartmediagroup.com
  * License: GPL-2.0-or-later
@@ -18,9 +18,9 @@ if (!defined('ABSPATH')) {
 require_once plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 $myUpdateChecker = PucFactory::buildUpdateChecker(
-    'https://github.com/tonjaggart/instant-estimate-builder', // GitHub repo for release metadata; legacy plugin slug is kept below.
+    'https://github.com/tonjaggart/instant-estimate-builder', // GitHub repo for release metadata.
     __FILE__,
-    'hvac-quote-generator' // Legacy slug kept so existing installs can update cleanly.
+    'instant-estimate-builder'
 );
 
 // End plugin update checker
@@ -574,7 +574,7 @@ add_filter('plugins_api', function ($result, $action, $args) {
     if ($action !== 'plugin_information') {
         return $result;
     }
-    if (empty($args->slug) || $args->slug !== 'hvac-quote-generator') {
+    if (empty($args->slug) || !in_array($args->slug, ['instant-estimate-builder', 'hvac-quote-generator'], true)) {
         return $result;
     }
 
@@ -587,8 +587,8 @@ add_filter('plugins_api', function ($result, $action, $args) {
 
     return (object) [
         'name'           => 'Instant Estimate Builder',
-        'slug'           => 'hvac-quote-generator', // Legacy slug kept so existing installs can still see update details.
-        'version'        => '1.0.7',
+        'slug'           => 'instant-estimate-builder',
+        'version'        => '1.0.8',
         'author'         => '<a href="https://taggartmediagroup.com/">Taggart Media Group</a>',
         'author_profile' => 'https://taggartmediagroup.com/',
         'homepage'       => 'https://taggartmediagroup.com/',

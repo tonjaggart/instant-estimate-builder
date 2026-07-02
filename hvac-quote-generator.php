@@ -119,7 +119,7 @@ add_action('admin_menu', function() {
     add_menu_page(
         'Instant Estimate Builder',
         'Instant Estimate Builder',
-        'manage_options',
+        'edit_posts',
         IEB_ADMIN_MENU_SLUG,
         'hgm_render_dashboard_page',
         'dashicons-clipboard',
@@ -131,7 +131,7 @@ add_action('admin_menu', function() {
         IEB_ADMIN_MENU_SLUG,
         'Dashboard',
         'Dashboard',
-        'manage_options',
+        'edit_posts',
         IEB_ADMIN_MENU_SLUG,
         'hgm_render_dashboard_page'
     );
@@ -141,7 +141,7 @@ add_action('admin_menu', function() {
         IEB_ADMIN_MENU_SLUG,
         'Estimate Forms',
         'Estimate Forms',
-        'manage_options',
+        'edit_posts',
         'instant-estimate-forms',
         'ieb_render_estimate_forms_page'
     );
@@ -150,7 +150,7 @@ add_action('admin_menu', function() {
         IEB_ADMIN_MENU_SLUG,
         'Add New Estimate Form',
         'Add New Estimate Form',
-        'manage_options',
+        'edit_posts',
         'instant-estimate-form',
         '__return_null'
     );
@@ -199,7 +199,7 @@ add_action('admin_menu', function() {
         null,
         'Edit Estimate Form',
         'Edit Estimate Form',
-        'manage_options',
+        'edit_posts',
         'post.php',
         ''
     );

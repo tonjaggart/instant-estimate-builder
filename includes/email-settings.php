@@ -1,37 +1,48 @@
 <?php
 // Ensure media uploader is available
 function hgm_enqueue_email_settings_media($hook) {
-    if ($hook === 'toplevel_page_hgm-email-settings') {
+    if (strpos($hook, 'instant-estimate-email-settings') !== false || strpos($hook, 'hgm-email-settings') !== false) {
         wp_enqueue_media();
     }
 }
 add_action('admin_enqueue_scripts', 'hgm_enqueue_email_settings_media');
 function hgm_render_email_settings_page() {
     $active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'customize';
+    $page_slug = 'instant-estimate-email-settings';
 
-    echo '<div class="wrap">';
-    echo '<h1>Email Settings</h1>';
+    echo '<div class="wrap hgm-dashboard ieb-email-settings-page">';
 
-    // Tabs
-    echo '<h2 class="nav-tab-wrapper">';
-    echo '<a href="' . admin_url('admin.php?page=hgm-email-settings&tab=customize') . '" class="nav-tab ' . ($active_tab === 'customize' ? 'nav-tab-active' : '') . '">Customize Estimate Email</a>';
-    echo '<a href="' . admin_url('admin.php?page=hgm-email-settings&tab=preview') . '" class="nav-tab ' . ($active_tab === 'preview' ? 'nav-tab-active' : '') . '">Preview and Send a Test Email</a>';
-    echo '</h2>';
+    echo '<section class="hgm-dashboard-hero ieb-email-settings-hero">';
+    echo '<div class="hgm-dashboard-eyebrow">Email Settings</div>';
+    echo '<h1>Estimate Email Settings</h1>';
+    echo '<p class="hgm-dashboard-subtitle">Customize the branded estimate email that is automatically sent to leads after they complete an instant estimate form.</p>';
+    echo '<div class="hgm-dashboard-actions">';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG)) . '" class="button hgm-button-secondary">Back To Dashboard</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-forms')) . '" class="button hgm-button-secondary">View Estimate Forms</a>';
+    echo '</div>';
+    echo '</section>';
 
-    // Tab content
+    echo '<div class="ieb-settings-tabs">';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=' . $page_slug . '&tab=customize')) . '" class="ieb-settings-tab ' . ($active_tab === 'customize' ? 'is-active' : '') . '">Customize Estimate Email</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=' . $page_slug . '&tab=preview')) . '" class="ieb-settings-tab ' . ($active_tab === 'preview' ? 'is-active' : '') . '">Preview and Send a Test Email</a>';
+    echo '</div>';
+
     if ($active_tab === 'customize') {
-        $options = get_option('hgm_email_settings', []);
-        echo '<form method="post" action="options.php">';
+        echo '<div class="hgm-dashboard-card ieb-email-settings-card">';
+        echo '<div class="hgm-card-label">Email Content</div>';
+        echo '<h2>Customize Email Content</h2>';
+        echo '<p>Update the logo, CTA, company details, color, and message copy that appear in the customer estimate email.</p>';
+        echo '<form method="post" action="options.php" class="ieb-email-settings-form">';
         settings_fields('hgm_email_settings');
-        echo '<table class="form-table">';
         do_settings_sections('hgm-email-settings');
-        echo '</table>';
-        submit_button('Save Email Settings');
+        submit_button('Save Email Settings', 'primary hgm-button-primary ieb-email-save-button', 'submit', true);
         echo '</form>';
-    }
-
-    elseif ($active_tab === 'preview') {
-        $options = get_option('hgm_email_settings', []);
+        echo '</div>';
+    } elseif ($active_tab === 'preview') {
+        echo '<div class="hgm-dashboard-card ieb-email-settings-card ieb-email-preview-card">';
+        echo '<div class="hgm-card-label">Preview</div>';
+        echo '<h2>Preview and Send a Test Email</h2>';
+        echo '<div class="ieb-email-preview-legacy">';
         echo '<div style="text-align: center; margin: 40px 0;">';
         echo '<h2>Send Test Email</h2>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display: inline-flex; align-items: center; gap: 10px;">';
@@ -43,16 +54,17 @@ function hgm_render_email_settings_page() {
         echo '</div>';
         echo '<hr>';
         echo '<div style="margin-top:40px;">';
-        // ✅ With this:
         try {
             echo hgm_get_customer_email_html();
         } catch (Throwable $e) {
             echo '<div style="color:red; font-weight:bold;">Preview error: ' . esc_html($e->getMessage()) . '</div>';
         }
-
+        echo '</div>';
+        echo '</div>';
         echo '</div>';
     }
-    echo '</div>'; // ✅ Add this to close the wrapper
+
+    echo '</div>';
 }
 
 function hgm_render_email_setting_field($args) {
@@ -79,23 +91,23 @@ function hgm_render_email_setting_field($args) {
     // Output the field
     switch ($key) {
         case 'logo_url':
-            echo "<input type='text' id='hgm_logo_url' name='hgm_email_settings[$key]' value='" . esc_url($value) . "' class='regular-text' />";
-            echo " <button type='button' class='button' id='hgm_upload_logo_button'>Upload/Choose Image</button>";
+            echo "<input type='text' id='hgm_logo_url' name='hgm_email_settings[$key]' value='" . esc_url($value) . "' class='regular-text ieb-email-logo-url' />";
+            echo " <button type='button' class='button hgm-button-secondary ieb-email-upload-button' id='hgm_upload_logo_button'>Upload/Choose Image</button>";
             break;
 
         case 'body_copy':
         case 'disclaimer':
         case 'text_below_btn':
             $rows = $key === 'text_below_btn' ? 2 : 4;
-            echo "<textarea name='hgm_email_settings[$key]' rows='$rows' class='regular-text'>" . esc_textarea($value) . "</textarea>";
+            echo "<textarea name='hgm_email_settings[$key]' rows='$rows' class='regular-text ieb-email-textarea'>" . esc_textarea($value) . "</textarea>";
             break;
 
         case 'primary_color':
-            echo "<input type='text' name='hgm_email_settings[$key]' value='" . esc_attr($value) . "' class='hgm-color-field' />";
+            echo "<input type='text' name='hgm_email_settings[$key]' value='" . esc_attr($value) . "' class='hgm-color-field ieb-email-color-field' />";
             break;
 
         default:
-            echo "<input type='text' name='hgm_email_settings[$key]' value='" . esc_attr($value) . "' class='regular-text'>";
+            echo "<input type='text' name='hgm_email_settings[$key]' value='" . esc_attr($value) . "' class='regular-text ieb-email-input'>";
             break;
     }
 }
@@ -107,7 +119,7 @@ add_action('admin_init', function () {
 
     add_settings_section(
         'hgm_email_section',
-        'Customize Email Content',
+        '',
         '__return_null',
         'hgm-email-settings'
     );
@@ -229,7 +241,7 @@ add_action('admin_post_hgm_send_test_email', function () {
     wp_mail($to, $subject, $message, $headers);
 
     set_transient('hgm_test_email_sent', $to, 30);
-    wp_redirect(admin_url('admin.php?page=hgm-email-settings&tab=preview'));
+    wp_redirect(admin_url('admin.php?page=instant-estimate-email-settings&tab=preview'));
     exit;
 });
 
@@ -242,9 +254,11 @@ add_action('admin_notices', function () {
 });
 
 add_action('admin_enqueue_scripts', function ($hook) {
-    if ($hook === 'toplevel_page_hgm-email-settings' || strpos($hook, 'hgm-email-settings') !== false) {
+    if (strpos($hook, 'instant-estimate-email-settings') !== false || strpos($hook, 'hgm-email-settings') !== false) {
         wp_enqueue_media();
         wp_enqueue_style('wp-color-picker');
+        wp_enqueue_style('hgm-dashboard-css', plugin_dir_url(__FILE__) . '../assets/dashboard.css', [], filemtime(plugin_dir_path(__FILE__) . '../assets/dashboard.css'));
+        wp_enqueue_style('hgm-admin-css', plugin_dir_url(__FILE__) . '../assets/admin.css', [], filemtime(plugin_dir_path(__FILE__) . '../assets/admin.css'));
         wp_enqueue_script('hgm-admin-media', plugin_dir_url(__FILE__) . '../assets/admin.js', ['jquery', 'wp-color-picker'], null, true);
     }
 });

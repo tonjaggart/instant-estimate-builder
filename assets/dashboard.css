@@ -361,3 +361,204 @@
         overflow-x: auto;
     }
 }
+
+/* Email Settings page */
+.ieb-email-settings-page {
+    padding-bottom: 56px;
+}
+
+.ieb-email-settings-hero {
+    margin-bottom: 22px;
+}
+
+.ieb-settings-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 22px 0;
+    padding: 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
+.ieb-settings-tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 0 18px;
+    border-radius: 999px;
+    color: #475569;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.ieb-settings-tab:hover,
+.ieb-settings-tab:focus {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.ieb-settings-tab.is-active {
+    background: #2563eb;
+    color: #fff;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+}
+
+.ieb-email-settings-card {
+    max-width: 1180px;
+    min-height: 0;
+}
+
+.ieb-email-settings-card > h2 {
+    margin-bottom: 10px;
+    font-size: 28px;
+}
+
+.ieb-email-settings-form .form-table {
+    margin-top: 20px;
+    border-collapse: collapse;
+}
+
+.ieb-email-settings-form .form-table tbody tr {
+    border-top: 1px solid #eef2f7;
+}
+
+.ieb-email-settings-form .form-table tbody tr:first-child {
+    border-top: 0;
+}
+
+.ieb-email-settings-form .form-table th,
+.ieb-email-settings-form .form-table td {
+    padding: 22px 0;
+    vertical-align: top;
+}
+
+.ieb-email-settings-form .form-table th {
+    width: 290px;
+    padding-right: 28px;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.45;
+}
+
+.ieb-email-settings-form .regular-text,
+.ieb-email-settings-form .ieb-email-textarea {
+    width: 100%;
+    max-width: 680px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    color: #0f172a;
+    font-size: 15px;
+    box-shadow: none;
+}
+
+.ieb-email-settings-form .ieb-email-textarea {
+    min-height: 118px;
+    line-height: 1.6;
+}
+
+.ieb-email-settings-form .regular-text:focus,
+.ieb-email-settings-form .ieb-email-textarea:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    outline: none;
+}
+
+.ieb-email-logo-url {
+    margin-right: 10px;
+}
+
+.ieb-email-upload-button.button,
+.ieb-email-settings-form .hgm-button-secondary.button {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.ieb-email-upload-button.button:hover,
+.ieb-email-upload-button.button:focus,
+.ieb-email-settings-form .hgm-button-secondary.button:hover,
+.ieb-email-settings-form .hgm-button-secondary.button:focus {
+    border-color: #93c5fd;
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.ieb-email-settings-form .wp-picker-container .wp-color-result.button,
+.ieb-email-settings-form .wp-picker-container .wp-color-result {
+    box-sizing: border-box;
+    min-width: 220px;
+    min-height: 42px;
+    overflow: hidden;
+    padding: 0 0 0 62px !important;
+    border: 1px solid #bfdbfe !important;
+    border-radius: 999px !important;
+    background: #f8fafc;
+    box-shadow: none;
+}
+
+.ieb-email-settings-form .wp-picker-container .wp-color-result.button::after,
+.ieb-email-settings-form .wp-picker-container .wp-color-result::after {
+    display: none;
+}
+
+.ieb-email-settings-form .wp-picker-container .wp-color-result-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    margin: 0;
+    padding: 0 18px;
+    border-left: 1px solid #bfdbfe;
+    border-radius: 0 999px 999px 0;
+    background: #f8fafc;
+    color: #4b5563;
+    font-weight: 800;
+    line-height: 40px;
+}
+
+.ieb-email-settings-form .submit {
+    margin-top: 18px;
+    padding-top: 10px;
+}
+
+.ieb-email-save-button.button.button-primary {
+    min-height: 48px;
+    padding: 10px 24px;
+    border-color: #2563eb;
+    border-radius: 999px;
+    background: #2563eb;
+    font-size: 15px;
+    font-weight: 800;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
+}
+
+.ieb-email-save-button.button.button-primary:hover,
+.ieb-email-save-button.button.button-primary:focus {
+    border-color: #1d4ed8;
+    background: #1d4ed8;
+}
+
+@media (max-width: 782px) {
+    .ieb-settings-tab {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .ieb-email-settings-form .form-table th,
+    .ieb-email-settings-form .form-table td {
+        display: block;
+        width: 100%;
+        padding: 14px 0;
+    }
+
+    .ieb-email-logo-url {
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+}

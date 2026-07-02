@@ -62,6 +62,12 @@ add_action('admin_init', function () {
         exit;
     }
 
+    if (isset($_GET['page']) && $_GET['page'] === 'hgm-email-settings') {
+        $tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'customize';
+        wp_safe_redirect(admin_url('admin.php?page=instant-estimate-email-settings&tab=' . $tab));
+        exit;
+    }
+
     if (isset($_GET['post_type']) && $_GET['post_type'] === 'instant_quote_form' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
         wp_safe_redirect(admin_url('admin.php?page=instant-estimate-forms'));
         exit;
@@ -155,7 +161,7 @@ add_action('admin_menu', function() {
         'Email Settings',
         'Email Settings',
         'manage_options',
-        'hgm-email-settings',
+        'instant-estimate-email-settings',
         'hgm_render_email_settings_page'
     );
 
@@ -245,7 +251,7 @@ add_filter('parent_file', function ($parent_file) {
     if (
         $current_screen->post_type === 'instant_quote_form' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-forms' ||
-        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-email-settings' ||
+        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-email-settings' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-view-lead' ||
         (isset($_GET['page']) && $_GET['page'] === 'hgm-view-lead')
     ) {
@@ -258,6 +264,10 @@ add_filter('parent_file', function ($parent_file) {
 add_filter('submenu_file', function ($submenu_file) {
     if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-forms') {
         return 'instant-estimate-forms';
+    }
+
+    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-email-settings') {
+        return 'instant-estimate-email-settings';
     }
 
     if (isset($_GET['page']) && $_GET['page'] === 'hgm_view_lead') {
@@ -298,7 +308,7 @@ add_action('admin_init', function () {
 // Enqueue admin scripts and styles
 add_action('admin_enqueue_scripts', function ($hook) {
     // Only load on plugin settings pages
-    if (strpos($hook, 'hgm-email-settings') === false) {
+    if (strpos($hook, 'hgm-email-settings') === false && strpos($hook, 'instant-estimate-email-settings') === false) {
         return;
     }
 

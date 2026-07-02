@@ -29,7 +29,7 @@ function hgm_render_dashboard_page() {
     echo '<p class="hgm-dashboard-subtitle">Create multi-step instant estimate forms for local service businesses, capture better leads, and follow up faster.</p>';
     echo '<div class="hgm-dashboard-actions">';
     echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-form')) . '" class="button button-primary hgm-button-primary">Create Estimate Form</a>';
-    echo '<a href="' . esc_url(admin_url('edit.php?post_type=hgm_lead')) . '" class="button hgm-button-secondary">View Leads</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-leads')) . '" class="button hgm-button-secondary">View Leads</a>';
     echo '</div>';
     echo '</section>';
 
@@ -43,7 +43,7 @@ function hgm_render_dashboard_page() {
     echo '<div class="hgm-stat-box"><span>Last 7 Days</span><strong>' . esc_html($lead_counts['week']) . '</strong></div>';
     echo '<div class="hgm-stat-box"><span>Last 30 Days</span><strong>' . esc_html($lead_counts['month']) . '</strong></div>';
     echo '</div>';
-    echo '<a href="' . esc_url(admin_url('edit.php?post_type=hgm_lead')) . '" class="hgm-text-link">Open Lead Inbox →</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-leads')) . '" class="hgm-text-link">Open Lead Inbox →</a>';
     echo '</div>';
 
     echo '<div class="hgm-dashboard-card">';

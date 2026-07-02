@@ -377,7 +377,7 @@ function hgm_render_view_lead_screen()
     error_log("Plugin page: " . ($_GET["page"] ?? "none"));
     echo '<div style="margin: 20px 0 20px;">';
     echo '<a href="' .
-        esc_url(admin_url("edit.php?post_type=hgm_lead")) .
+        esc_url(admin_url("admin.php?page=instant-estimate-leads")) .
         '" class="button button-primary">&larr; Back to All Leads</a>';
     echo "</div>";
     if (!current_user_can("edit_posts")) {

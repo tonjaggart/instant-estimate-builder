@@ -56,12 +56,12 @@ add_action('manage_posts_extra_tablenav', function($which) {
 add_action('admin_post_hgm_export_leads_csv', 'hgm_export_leads_csv_callback');
 
 function hgm_export_leads_csv_callback() {
-    if (!current_user_can('manage_options')) {
+    if (!current_user_can('edit_posts')) {
         wp_die('Unauthorized');
     }
 
     header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="hvac_leads.csv"');
+    header('Content-Disposition: attachment; filename="instant-estimate-leads.csv"');
     header('Pragma: no-cache');
     header('Expires: 0');
 
@@ -94,3 +94,142 @@ function hgm_export_leads_csv_callback() {
     exit;
 }
 
+add_action('admin_enqueue_scripts', function ($hook) {
+    if (strpos($hook, 'instant-estimate-leads') !== false) {
+        wp_enqueue_style('hgm-dashboard-css', plugin_dir_url(__FILE__) . '../assets/dashboard.css', [], filemtime(plugin_dir_path(__FILE__) . '../assets/dashboard.css'));
+    }
+});
+
+function ieb_render_leads_page() {
+    $paged = isset($_GET['paged']) ? max(1, absint($_GET['paged'])) : 1;
+    $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
+    $per_page = 20;
+
+    $query_args = [
+        'post_type'      => 'hgm_lead',
+        'post_status'    => 'publish',
+        'posts_per_page' => $per_page,
+        'paged'          => $paged,
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+    ];
+
+    if ($search !== '') {
+        $query_args['s'] = $search;
+    }
+
+    $leads_query = new WP_Query($query_args);
+    $published_count = (int) wp_count_posts('hgm_lead')->publish;
+    $seven_days_ago = gmdate('Y-m-d H:i:s', strtotime('-7 days'));
+    $recent_count = (new WP_Query([
+        'post_type'      => 'hgm_lead',
+        'post_status'    => 'publish',
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'date_query'     => [
+            [
+                'after'     => $seven_days_ago,
+                'inclusive' => true,
+            ],
+        ],
+    ]))->found_posts;
+
+    echo '<div class="wrap hgm-dashboard ieb-leads-page">';
+
+    echo '<section class="hgm-dashboard-hero ieb-leads-hero">';
+    echo '<div class="hgm-dashboard-eyebrow">Lead Inbox</div>';
+    echo '<h1>Instant Estimate Leads</h1>';
+    echo '<p class="hgm-dashboard-subtitle">Review new instant estimate submissions, contact details, ZIP codes, and estimate ranges in one place.</p>';
+    echo '<div class="hgm-dashboard-actions">';
+    echo '<a href="' . esc_url(admin_url('admin-post.php?action=hgm_export_leads_csv')) . '" class="button button-primary hgm-button-primary">Export Leads CSV</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG)) . '" class="button hgm-button-secondary">Back To Dashboard</a>';
+    echo '</div>';
+    echo '</section>';
+
+    echo '<div class="ieb-forms-summary-grid ieb-leads-summary-grid">';
+    echo '<div class="hgm-dashboard-card ieb-forms-summary-card"><span>Total Leads</span><strong>' . esc_html($published_count) . '</strong></div>';
+    echo '<div class="hgm-dashboard-card ieb-forms-summary-card"><span>Last 7 Days</span><strong>' . esc_html($recent_count) . '</strong></div>';
+    echo '</div>';
+
+    echo '<div class="hgm-dashboard-card ieb-leads-table-card">';
+    echo '<div class="hgm-card-label">Lead Inbox</div>';
+    echo '<div class="ieb-leads-card-header">';
+    echo '<div>';
+    echo '<h2>View Leads</h2>';
+    echo '<p>Use this list to open the full lead detail screen for notes and follow-up.</p>';
+    echo '</div>';
+    echo '<form method="get" class="ieb-leads-search">';
+    echo '<input type="hidden" name="page" value="instant-estimate-leads" />';
+    echo '<input type="search" name="s" value="' . esc_attr($search) . '" placeholder="Search leads" />';
+    echo '<button type="submit" class="button hgm-button-secondary">Search</button>';
+    if ($search !== '') {
+        echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-leads')) . '" class="button hgm-button-secondary">Clear</a>';
+    }
+    echo '</form>';
+    echo '</div>';
+
+    if (!$leads_query->have_posts()) {
+        echo '<div class="ieb-leads-empty">No leads found yet.</div>';
+        echo '</div></div>';
+        wp_reset_postdata();
+        return;
+    }
+
+    echo '<div class="ieb-leads-table-wrap">';
+    echo '<table class="widefat fixed striped ieb-leads-table">';
+    echo '<thead><tr>';
+    echo '<th>Name</th>';
+    echo '<th>Email</th>';
+    echo '<th>Phone</th>';
+    echo '<th>ZIP Code</th>';
+    echo '<th>Estimate</th>';
+    echo '<th>Date</th>';
+    echo '<th class="ieb-leads-actions-column">Action</th>';
+    echo '</tr></thead>';
+    echo '<tbody>';
+
+    while ($leads_query->have_posts()) {
+        $leads_query->the_post();
+        $post_id = get_the_ID();
+        $email = get_post_meta($post_id, 'email', true);
+        $phone = get_post_meta($post_id, 'phone', true);
+        $zip = get_post_meta($post_id, 'zip_code', true);
+        $low = get_post_meta($post_id, '_hgm_estimate_low', true);
+        $high = get_post_meta($post_id, '_hgm_estimate_high', true);
+        $estimate = ($low && $high) ? "$low – $high" : '—';
+        $detail_url = admin_url('admin.php?page=hgm_view_lead&id=' . $post_id);
+
+        echo '<tr>';
+        echo '<td><strong>' . esc_html(get_the_title() ?: 'Untitled Lead') . '</strong></td>';
+        echo '<td>' . esc_html($email ?: '—') . '</td>';
+        echo '<td>' . esc_html($phone ?: '—') . '</td>';
+        echo '<td>' . esc_html($zip ?: '—') . '</td>';
+        echo '<td>' . esc_html($estimate) . '</td>';
+        echo '<td>' . esc_html(get_the_date('M j, Y g:i a')) . '</td>';
+        echo '<td class="ieb-leads-actions"><a href="' . esc_url($detail_url) . '" class="button button-primary hgm-button-primary ieb-lead-detail-button">View Lead Details</a></td>';
+        echo '</tr>';
+    }
+
+    echo '</tbody>';
+    echo '</table>';
+    echo '</div>';
+
+    $total_pages = (int) $leads_query->max_num_pages;
+    if ($total_pages > 1) {
+        echo '<div class="ieb-leads-pagination">';
+        echo paginate_links([
+            'base'      => add_query_arg('paged', '%#%', admin_url('admin.php?page=instant-estimate-leads' . ($search !== '' ? '&s=' . rawurlencode($search) : ''))),
+            'format'    => '',
+            'current'   => $paged,
+            'total'     => $total_pages,
+            'prev_text' => '&lsaquo; Previous',
+            'next_text' => 'Next &rsaquo;',
+        ]);
+        echo '</div>';
+    }
+
+    echo '</div>';
+    echo '</div>';
+
+    wp_reset_postdata();
+}

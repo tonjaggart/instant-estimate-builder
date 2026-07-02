@@ -36,7 +36,7 @@ function hgm_render_notifications_settings_page() {
     echo '<p class="hgm-dashboard-subtitle">Set up the email and text alerts sent to your team when a new instant estimate lead comes in.</p>';
     echo '<div class="hgm-dashboard-actions">';
     echo '<a href="' . esc_url(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG)) . '" class="button hgm-button-secondary">Back To Dashboard</a>';
-    echo '<a href="' . esc_url(admin_url('edit.php?post_type=hgm_lead')) . '" class="button hgm-button-secondary">View Leads</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-leads')) . '" class="button hgm-button-secondary">View Leads</a>';
     echo '</div>';
     echo '</section>';
 

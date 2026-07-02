@@ -74,6 +74,11 @@ add_action('admin_init', function () {
         exit;
     }
 
+    if (isset($_GET['post_type']) && $_GET['post_type'] === 'hgm_lead' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
+        wp_safe_redirect(admin_url('admin.php?page=instant-estimate-leads'));
+        exit;
+    }
+
     if (isset($_GET['post_type']) && $_GET['post_type'] === 'instant_quote_form' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
         wp_safe_redirect(admin_url('admin.php?page=instant-estimate-forms'));
         exit;
@@ -99,11 +104,11 @@ function hgm_register_cpts() {
 
     register_post_type('hgm_lead', [
         'labels' => [
-            'name' => 'Leads',
-            'singular_name' => 'Lead',
-            'add_new_item' => 'Add New Lead',
-            'edit_item' => 'Edit Lead',
-            'menu_name' => 'Leads',
+            'name' => 'Instant Estimate Leads',
+            'singular_name' => 'Instant Estimate Lead',
+            'add_new_item' => 'Add New Instant Estimate Lead',
+            'edit_item' => 'Edit Instant Estimate Lead',
+            'menu_name' => 'Instant Estimate Leads',
         ],
         'public' => false,
         'show_ui' => true,
@@ -184,10 +189,11 @@ add_action('admin_menu', function() {
     // View Leads
     add_submenu_page(
         IEB_ADMIN_MENU_SLUG,
+        'Instant Estimate Leads',
         'View Leads',
-        'View Leads',
-        'manage_options',
-        'edit.php?post_type=hgm_lead'
+        'edit_posts',
+        'instant-estimate-leads',
+        'ieb_render_leads_page'
     );
 
     // Hidden lead details page
@@ -195,7 +201,7 @@ add_action('admin_menu', function() {
         'edit.php?post_type=hgm_lead',
         'View Lead Details',
         '', // hidden
-        'manage_options',
+        'edit_posts',
         'hgm_view_lead',
         'hgm_render_view_lead_screen'
     );
@@ -215,7 +221,7 @@ add_action('admin_menu', function() {
         null,
         'View Lead Details',
         'View Lead Details',
-        'manage_options',
+        'edit_posts',
         'hgm_view_lead',
         'hgm_render_view_lead_screen'
     );
@@ -259,7 +265,9 @@ add_filter('parent_file', function ($parent_file) {
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-forms' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-email-settings' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-notifications' ||
+        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-leads' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-view-lead' ||
+        (isset($_GET['page']) && $_GET['page'] === 'hgm_view_lead') ||
         (isset($_GET['page']) && $_GET['page'] === 'hgm-view-lead')
     ) {
         $parent_file = IEB_ADMIN_MENU_SLUG;
@@ -281,8 +289,12 @@ add_filter('submenu_file', function ($submenu_file) {
         return 'instant-estimate-notifications';
     }
 
+    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-leads') {
+        return 'instant-estimate-leads';
+    }
+
     if (isset($_GET['page']) && $_GET['page'] === 'hgm_view_lead') {
-        return 'edit.php?post_type=hgm_lead'; // Match existing submenu item
+        return 'instant-estimate-leads';
     }
     return $submenu_file;
 });

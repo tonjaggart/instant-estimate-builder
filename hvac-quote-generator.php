@@ -80,6 +80,11 @@ add_action('admin_init', function () {
         exit;
     }
 
+    if (isset($_GET['page']) && $_GET['page'] === 'hgm-integrations') {
+        wp_safe_redirect(admin_url('admin.php?page=instant-estimate-integrations'));
+        exit;
+    }
+
     if (isset($_GET['post_type']) && $_GET['post_type'] === 'hgm_lead' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
         wp_safe_redirect(admin_url('admin.php?page=instant-estimate-leads'));
         exit;
@@ -238,7 +243,7 @@ add_action('admin_menu', function() {
         'Integrations',              // Page title
         'Integrations',              // Menu title
         'manage_options',            // Capability
-        'hgm-integrations',          // Menu slug
+        'instant-estimate-integrations', // Menu slug
         'hgm_render_integrations_page' // Callback function
     );
 
@@ -272,7 +277,9 @@ function ieb_is_plugin_admin_page($screen = null) {
         'instant-estimate-notifications',
         'instant-estimate-leads',
         'instant-estimate-lead',
+        'instant-estimate-integrations',
         'hgm_view_lead',
+        'hgm-integrations',
         'hgm-view-lead',
     ];
 
@@ -318,6 +325,7 @@ add_filter('submenu_file', function ($submenu_file) {
         'instant-estimate-email-settings',
         'instant-estimate-notifications',
         'instant-estimate-leads',
+        'instant-estimate-integrations',
     ];
 
     if (in_array($page, $plugin_submenus, true)) {

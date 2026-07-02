@@ -9,26 +9,48 @@ if (!defined('ABSPATH')) {
  */
 function hgm_render_integrations_page() {
 ?>
-<div class="wrap">
-    <h1>Integrations</h1>
+<div class="wrap hgm-dashboard ieb-integrations-page">
+    <section class="hgm-dashboard-hero ieb-integrations-hero">
+        <div class="hgm-dashboard-eyebrow">Integrations</div>
+        <h1>Instant Estimate Integrations</h1>
+        <p class="hgm-dashboard-subtitle">Connect Klaviyo so new estimate leads can flow into your email marketing lists.</p>
+        <div class="hgm-dashboard-actions">
+            <a href="<?php echo esc_url(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG)); ?>" class="button hgm-button-secondary">Back To Dashboard</a>
+            <a href="<?php echo esc_url(admin_url('admin.php?page=instant-estimate-forms')); ?>" class="button hgm-button-secondary">Manage Estimate Forms</a>
+        </div>
+    </section>
     <?php
     // ======================
     // SHOW SETTINGS SUCCESS / ERROR MESSAGES
     // ======================
     settings_errors();
+
+    $api_key = get_option('hgm_klaviyo_api_key');
     ?>
-    <form method="post" action="options.php">
-        <?php
-    // Output security fields
-    settings_fields('hgm_integrations_settings');
+    <div class="hgm-dashboard-card ieb-integrations-card">
+        <div class="hgm-card-label">Klaviyo</div>
+        <h2>Connect Klaviyo</h2>
+        <p>Enter your Klaviyo Private API Key once, then choose which estimate forms should send leads into Klaviyo.</p>
 
-    // Output settings sections + fields
-    do_settings_sections('hgm-integrations');
-
-    // Save button
-    submit_button();
-        ?>
-    </form>
+        <form method="post" action="options.php" class="ieb-integrations-form">
+            <?php settings_fields('hgm_integrations_settings'); ?>
+            <div class="ieb-integrations-field-row">
+                <label for="hgm_klaviyo_api_key">Private API Key</label>
+                <div class="ieb-integrations-field-control">
+                    <input
+                        type="text"
+                        id="hgm_klaviyo_api_key"
+                        name="hgm_klaviyo_api_key"
+                        value="<?php echo esc_attr($api_key); ?>"
+                        class="regular-text ieb-integrations-input"
+                        placeholder="Enter your Klaviyo Private API Key"
+                    />
+                    <p class="description">Used server-side to sync estimate leads with Klaviyo. You can update or remove it anytime.</p>
+                </div>
+            </div>
+            <button type="submit" name="submit" id="submit" class="button button-primary hgm-button-primary">Save Klaviyo Settings</button>
+        </form>
+    </div>
 </div>
 <?php
 }

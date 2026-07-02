@@ -2,7 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 add_action('admin_enqueue_scripts', function ($hook) {
-    if ($hook === 'toplevel_page_' . IEB_ADMIN_MENU_SLUG || $hook === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-forms') {
+    $dashboard_pages = [
+        'toplevel_page_' . IEB_ADMIN_MENU_SLUG,
+        IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-forms',
+        IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-integrations',
+    ];
+
+    if (in_array($hook, $dashboard_pages, true)) {
         wp_enqueue_style(
             'hgm-dashboard-css',
             plugin_dir_url(dirname(__FILE__)) . 'assets/dashboard.css',

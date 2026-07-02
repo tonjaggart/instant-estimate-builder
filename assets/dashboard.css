@@ -362,6 +362,81 @@
     }
 }
 
+/* Integrations page */
+.ieb-integrations-page {
+    padding-bottom: 56px;
+}
+
+.ieb-integrations-hero {
+    margin-bottom: 22px;
+}
+
+.ieb-integrations-card {
+    max-width: 920px;
+    min-height: 0;
+}
+
+.ieb-integrations-card > h2 {
+    margin-bottom: 10px;
+    font-size: 28px;
+}
+
+.ieb-integrations-form {
+    margin-top: 24px;
+}
+
+.ieb-integrations-field-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+    padding: 24px 0;
+    border-top: 1px solid #eef2f7;
+}
+
+.ieb-integrations-field-row label {
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.45;
+}
+
+.ieb-integrations-field-control .description {
+    max-width: 620px;
+    margin-top: 8px;
+    color: #64748b;
+}
+
+.ieb-integrations-input.regular-text {
+    width: 100%;
+    max-width: 620px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    color: #0f172a;
+    font-size: 15px;
+    box-shadow: none;
+}
+
+.ieb-integrations-input.regular-text:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    outline: none;
+}
+
+.ieb-integrations-form .submit {
+    margin: 0;
+    padding: 0;
+}
+
+@media (max-width: 782px) {
+    .ieb-integrations-field-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+}
+
 /* Email Settings page */
 .ieb-email-settings-page {
     padding-bottom: 56px;

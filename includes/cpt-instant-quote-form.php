@@ -1,15 +1,15 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-// Register Custom Post Type for Quote Forms
+// Register Custom Post Type for Estimate Forms
 function hgm_register_quote_form_cpt() {
     register_post_type( 'instant_quote_form', array(
         'labels' => array(
-            'name' => 'HVAC Instant Quote Generator',
-            'singular_name' => 'Quote Form',
-            'add_new_item' => 'Add New Quote Form',
-            'edit_item' => 'Edit Quote Form',
-            'menu_name' => 'HVAC Instant Quote Generator',
+            'name' => 'Estimate Forms',
+            'singular_name' => 'Estimate Form',
+            'add_new_item' => 'Add New Estimate Form',
+            'edit_item' => 'Edit Estimate Form',
+            'menu_name' => 'Estimate Forms',
         ),
         'public' => false,
         'show_ui' => true,

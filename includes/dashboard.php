@@ -12,77 +12,76 @@ add_action('admin_enqueue_scripts', function ($hook) {
     }
 });
 
-
 function hgm_render_main_menu_page() {
     echo '<div class="wrap">';
-    echo '<h1>HVAC Instant Quote Generator Dashboard</h1>';
+    echo '<h1>Instant Estimate Builder</h1>';
     echo '</div>';
 }
 
 function hgm_render_dashboard_page() {
+    $lead_counts = hgm_get_lead_counts();
+
     echo '<div class="wrap hgm-dashboard">';
 
-    echo '<h1 class="hgm-dashboard-title">Welcome to the HVAC Instant Quote Generator</h1>';
+    echo '<section class="hgm-dashboard-hero">';
+    echo '<div class="hgm-dashboard-eyebrow">Taggart Media Group</div>';
+    echo '<h1>Instant Estimate Builder</h1>';
+    echo '<p class="hgm-dashboard-subtitle">Create multi-step instant estimate forms for local service businesses, capture better leads, and follow up faster.</p>';
+    echo '<div class="hgm-dashboard-actions">';
+    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=instant_quote_form')) . '" class="button button-primary hgm-button-primary">Create Estimate Form</a>';
+    echo '<a href="' . esc_url(admin_url('edit.php?post_type=hgm_lead')) . '" class="button hgm-button-secondary">View Leads</a>';
+    echo '</div>';
+    echo '</section>';
 
     echo '<div class="hgm-dashboard-grid">';
 
-    // Column 1: Quick Stats
-    echo '<div class="hgm-dashboard-col">';
+    echo '<div class="hgm-dashboard-card hgm-dashboard-card-stats">';
+    echo '<div class="hgm-card-label">Lead Snapshot</div>';
+    echo '<h2>Recent performance</h2>';
+    echo '<div class="hgm-stat-grid">';
+    echo '<div class="hgm-stat-box"><span>Today</span><strong>' . esc_html($lead_counts['today']) . '</strong></div>';
+    echo '<div class="hgm-stat-box"><span>Last 7 days</span><strong>' . esc_html($lead_counts['week']) . '</strong></div>';
+    echo '<div class="hgm-stat-box"><span>Last 30 days</span><strong>' . esc_html($lead_counts['month']) . '</strong></div>';
+    echo '</div>';
+    echo '<a href="' . esc_url(admin_url('edit.php?post_type=hgm_lead')) . '" class="hgm-text-link">Open lead inbox →</a>';
+    echo '</div>';
+
     echo '<div class="hgm-dashboard-card">';
-    echo '<h2 class="hgm-section-title">Quick Stats</h2>';
-    $lead_counts = hgm_get_lead_counts();
-
-    echo '<div class="hgm-stat-box">Leads Today: <strong>' . esc_html($lead_counts['today']) . '</strong></div>';
-    echo '<div class="hgm-stat-box">Leads Last 7 Days: <strong>' . esc_html($lead_counts['week']) . '</strong></div>';
-    echo '<div class="hgm-stat-box">Leads Last 30 Days: <strong>' . esc_html($lead_counts['month']) . '</strong></div>';
-    echo '<a href="' . admin_url('edit.php?post_type=hgm_lead') . '" class="button button-secondary hgm-view-leads-btn">View All Leads</a>';
+    echo '<div class="hgm-card-label">Builder</div>';
+    echo '<h2>Manage estimate forms</h2>';
+    echo '<p>Build forms for windows, roofing, HVAC, plumbing, landscaping, pest control, and other local-service offers.</p>';
+    echo '<div class="hgm-link-list">';
+    echo '<a href="' . esc_url(admin_url('edit.php?post_type=instant_quote_form')) . '">Manage estimate forms</a>';
+    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=instant_quote_form')) . '">Add new estimate form</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=hgm-notifications-settings')) . '">Notification settings</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=hgm-email-settings')) . '">Email settings</a>';
     echo '</div>';
     echo '</div>';
 
-    // Column 2: Quick Links
-    echo '<div class="hgm-dashboard-col">';
-    echo '<div class="hgm-dashboard-card">';
-    echo '<h2 class="hgm-section-title">Quick Links</h2>';
-    echo '<ul class="hgm-quick-links">';
-    echo '<li><a href="' . admin_url('edit.php?post_type=instant_quote_form') . '">Manage Quote Forms</a></li>';
-    echo '<li><a href="' . admin_url('post-new.php?post_type=instant_quote_form') . '">Add New Quote Form</a></li>';
-    echo '<li><a href="' . admin_url('admin.php?page=hgm-email-settings') . '">Email Settings</a></li>';
-    echo '<li><a href="' . admin_url('admin.php?page=hgm-notifications-settings') . '">Notifications</a></li>';
-     echo '<li><a href="' . admin_url('admin.php?page=hgm-license-settings') . '">License</a></li>';
-    echo '</ul>';
-    echo '</div>';
+    echo '<div class="hgm-dashboard-card hgm-dashboard-card-cta">';
+    echo '<div class="hgm-card-label">Done-for-you setup</div>';
+    echo '<h2>Want us to set this up?</h2>';
+    echo '<p>Taggart Media Group can configure your services, estimate ranges, notifications, styling, and test the full form.</p>';
+    echo '<div class="hgm-price-pill">One-time setup: $299</div>';
+    echo '<a href="https://taggartmediagroup.com/" target="_blank" rel="noopener" class="button button-primary hgm-button-primary">Get Setup Help</a>';
+    echo '<p class="hgm-dashboard-note">Plugin stays free. Setup help is optional.</p>';
     echo '</div>';
 
-    // Column 3: Support
-    echo '<div class="hgm-dashboard-col">';
-    echo '<div class="hgm-dashboard-card">';
-    echo '<h2 class="hgm-section-title">Support</h2>';
-    echo '<p><a href="mailto:support@hvacgrowthmachine.com">Contact Support</a></p>';
-    echo '<div class="hgm-upsell-box">';
-    echo '<h3>Need Help Setting Up?</h3>';
-    echo '<p>Let our team build your quote form for you.</p>';
-    echo '<a href="https://hvacgrowthmachine.com/checkout/?add-to-cart=280" target="_blank" class="button button-primary">Get Done-For-You Setup</a>';
     echo '</div>';
     echo '</div>';
-    echo '</div>';
-
-    echo '</div>'; // end hgm-dashboard-grid
-    echo '</div>'; // end wrap
 }
 
 function hgm_get_lead_counts() {
     $counts = [
         'today'  => 0,
-        'week'   => 0,  // Last 7 days
-        'month'  => 0,  // Last 30 days
+        'week'   => 0,
+        'month'  => 0,
     ];
 
-    // WP local time boundaries
     $today_start  = strtotime('today midnight', current_time('timestamp'));
     $week_start   = strtotime('-7 days', current_time('timestamp'));
     $month_start  = strtotime('-30 days', current_time('timestamp'));
 
-    // Query leads from the last 30 days (covers all counts)
     $args = [
         'post_type'      => 'hgm_lead',
         'post_status'    => 'publish',
@@ -100,7 +99,7 @@ function hgm_get_lead_counts() {
     $leads = get_posts($args);
 
     foreach ($leads as $lead_id) {
-        $timestamp = get_post_time('U', false, $lead_id); // Local time
+        $timestamp = get_post_time('U', false, $lead_id);
 
         if ($timestamp >= $today_start) {
             $counts['today']++;

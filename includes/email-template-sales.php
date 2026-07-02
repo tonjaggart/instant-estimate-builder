@@ -88,16 +88,16 @@ if (empty($quote_table_html) && is_array($form_data)) {
                     <?php
                     if (!empty($form_data) && is_array($form_data)) {
 
-                        // Debug: Log the quote form ID
-                        error_log('Quote Form ID: ' . $quote_form_id);
+                        // Debug: log the estimate form ID
+                        error_log('Estimate Form ID: ' . $quote_form_id);
 
-                        // Load saved step structure from the quote form post
-                        error_log('Sales email - using quote_form_id: ' . $quote_form_id);
+                        // Load saved step structure from the estimate form post
+                        error_log('Sales email - using estimate_form_id: ' . $quote_form_id);
                         $quote_form_data_raw = get_post_meta($quote_form_id, '_hgm_form_data', true);
                         $quote_form_data = is_string($quote_form_data_raw) ? json_decode($quote_form_data_raw, true) : $quote_form_data_raw;
 
                         // Debug: Log the form data structure
-                        error_log('Quote Form Data: ' . print_r($quote_form_data, true));
+                        error_log('Estimate Form Data: ' . print_r($quote_form_data, true));
 
                         echo '<table>';
                         echo '<tr><th>Question</th><th>Selected Answer</th></tr>';

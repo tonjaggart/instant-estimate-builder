@@ -1,6 +1,6 @@
 <?php
 /**
- * Template Name: Instant Quote Preview
+ * Template Name: Instant Estimate Preview
  */
 
 if (!defined('ABSPATH')) {

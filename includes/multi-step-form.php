@@ -11,7 +11,7 @@ if (!isset($form_data)) {
 
 // Bail if no form data
 if (empty($form_data) || !is_array($form_data)) {
-    echo '<p>No quote form data found for this form.</p>';
+    echo '<p>No estimate form data found for this form.</p>';
     return;
 }
 

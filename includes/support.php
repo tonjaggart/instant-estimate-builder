@@ -2,7 +2,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
- * HVAC Instant Quote Generator — Support Page
+ * Instant Estimate Builder — Support Page
  * - TOC with smooth scroll
  * - Each section: brief text + embedded video (oEmbed with iframe fallback)
  */
@@ -57,19 +57,19 @@ function hgm_render_support_page() {
             'id'      => 'enter-license',
             'title'   => 'How to activate and add the license to the plugin',
             'video'   => 'https://www.loom.com/share/53fe28b600f5413883fa76aa21e354b6?sid=38675128-5562-45c1-ada8-812217e48620',
-            'content' => '<p>Go to <strong>HVAC Instant Quote Generator → License</strong>, enter your email, license key, and public key, then click <em>Activate License</em>.</p>',
+            'content' => '<p>Go to <strong>Instant Estimate Builder → License</strong>, enter your email, license key, and public key, then click <em>Activate License</em>.</p>',
         ],
         [
             'id'      => 'create-first-form',
             'title'   => 'How to create your first form',
             'video'   => 'https://www.loom.com/share/cd1f4eed0b9e491192ed36481ad853b6?sid=722793eb-31d4-4687-b75e-2c2da0849293',
-            'content' => '<p>Open <strong>Quote Forms → Add New</strong>, configure your steps and questions, and save.</p>',
+            'content' => '<p>Open <strong>Estimate Forms → Add New</strong>, configure your steps and questions, and save.</p>',
         ],
         [
             'id'      => 'customize-email',
             'title'   => 'How to customize the email estimate that gets sent to your potential customer',
             'video'   => 'https://www.loom.com/share/2507c40765c5482ab3ade8baafd7aa58?sid=edc362d9-eced-4904-b294-45e22b4a7faf',
-            'content' => '<p>Adjust branding, colors, and message under <strong>HVAC Instant Quote Generator → Email Settings</strong>.</p>',
+            'content' => '<p>Adjust branding, colors, and message under <strong>Instant Estimate Builder → Email Settings</strong>.</p>',
         ],
         [
             'id'      => 'lead-email-notifications',
@@ -87,18 +87,18 @@ function hgm_render_support_page() {
             'id'      => 'leads-view-export-notes',
             'title'   => 'How view, export and leave internal notes for each lead',
             'video'   => 'https://www.loom.com/share/d15a682598ac4150b0cde1041dc7ae8c?sid=01ead1e1-583e-46cc-a08e-cc4c1122c394',
-            'content' => '<p>Go to <strong>HVAC Instant Quote Generator → View Leads</strong> to review, export, and add internal notes.</p>',
+            'content' => '<p>Go to <strong>Instant Estimate Builder → View Leads</strong> to review, export, and add internal notes.</p>',
         ],
         [
             'id'      => 'embed-shortcode',
-            'title'   => 'How to add your HVAC instant quote form to your website',
+            'title'   => 'How to add your HVAC instant estimate form to your website',
             'video'   => 'https://www.loom.com/share/1468e892cc004c1dadd05f054c358ba2?sid=fe6ebddd-4c4e-499e-9aac-b23654749aca',
             'content' => '<p>Edit a page and paste the shortcode like <code>[instant_quote_form id="123"]</code> where you want the form to appear.</p>',
         ],
     ];
 
     echo '<div id="hgm-support-top" class="wrap">';
-    echo '<h1>HVAC Instant Quote Generator — Support</h1>';
+    echo '<h1>Instant Estimate Builder — Support</h1>';
     echo '<p class="description">Quick tutorials and videos. Click a topic to jump to it.</p>';
 
     // Table of contents

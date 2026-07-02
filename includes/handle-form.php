@@ -340,7 +340,7 @@ function hgm_submit_quote_form() {
         foreach ($form_data as $step_data) {
             $question_title = 'Step ' . $step_index;
 
-            // If matching step exists in the quote form structure, use its title
+            // If matching step exists in the estimate form structure, use its title
             if (!empty($quote_form_data[$step_index - 1]['title'])) {
                 $question_title = esc_html($quote_form_data[$step_index - 1]['title']);
             }

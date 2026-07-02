@@ -65,7 +65,7 @@ function hgm_render_email_setting_field($args) {
         'phone_text'      => 'Call Us:',
         'button_text'     => 'Book a Free In-Home Estimate',
         'button_link'     => '',
-        'body_copy'       => "Thank you for completing our HVAC quote form. Based on your answers, here's your estimated price range:",
+        'body_copy'       => "Thank you for completing our HVAC estimate form. Based on your answers, here's your estimated price range:",
         'disclaimer'      => '*This is a rough estimate. Pricing may vary depending on your specific home, brand preferences, ductwork, and available rebates in your area.',
         'text_below_btn'  => 'If you have any questions or want to speak with an HVAC specialist, just reply to this email or call us at',
         'company_name'    => '',

@@ -54,7 +54,7 @@ function hgm_render_email_setting_field($args) {
     } elseif ($key === 'body_copy') {
         $value = isset($options[$key]) && $options[$key] !== '' 
             ? esc_textarea($options[$key]) 
-            : "Thank you for completing our HVAC quote form. Based on your answers, here's your estimated price range:";
+            : "Thank you for completing our instant estimate form. Based on your answers, here's your estimated price range:";
     } else {
         $value = esc_attr($options[$key] ?? '');
     }
@@ -62,7 +62,7 @@ function hgm_render_email_setting_field($args) {
         echo "<input type='text' id='hgm_logo_url' name='hgm_email_settings[$key]' value='$value' class='regular-text' />";
         echo " <button type='button' class='button' id='hgm_upload_logo_button'>Upload/Choose Image</button>";
     } elseif ($key === 'body_copy') {
-        $default = 'Thank you for completing our HVAC quote form. Based on your answers, here\'s your estimated price range:';
+        $default = 'Thank you for completing our instant estimate form. Based on your answers, here\'s your estimated price range:';
         $value = $value ?: $default;
         echo "<textarea name='hgm_email_settings[$key]' rows='4' class='regular-text'>$value</textarea>";
     } elseif ($key === 'disclaimer') {

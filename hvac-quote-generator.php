@@ -1,10 +1,11 @@
 <?php
 /**
- * Plugin Name: HVAC Quote Generator
- * Description: Create customizable multi-step quote forms with lead capture, email notifications, text message notifications and lead management.
- * Version: 1.0.5
- * Author: HVAC Growth Machine
- * Author URI: https://hvacgrowthmachine.com
+ * Plugin Name: Instant Estimate Builder
+ * Description: Build customizable multi-step instant estimate forms for local service businesses with lead capture, notifications, and lead management.
+ * Version: 1.0.6
+ * Author: Taggart Media Group
+ * Author URI: https://taggartmediagroup.com
+ * Text Domain: instant-estimate-builder
  */
 
 if (!defined('ABSPATH')) {
@@ -15,9 +16,9 @@ if (!defined('ABSPATH')) {
 require_once plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 $myUpdateChecker = PucFactory::buildUpdateChecker(
-    'https://hvacgrowthmachine.com/hgm-plugin/updates.json', // ← change this
+    'https://github.com/tonjaggart/instant-estimate-builder', // GitHub repo for release metadata; legacy plugin slug is kept below.
     __FILE__,
-    'hvac-quote-generator'
+    'hvac-quote-generator' // Legacy slug kept so existing installs can update cleanly.
 );
 
 // End plugin update checker
@@ -25,6 +26,10 @@ $myUpdateChecker = PucFactory::buildUpdateChecker(
 // Define constants only once here in main plugin file (plugin root)
 define('HGM_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('HGM_PLUGIN_URL', plugin_dir_url(__FILE__));
+
+// New generic aliases. Legacy HGM constants stay in place for backward compatibility.
+define('IEB_PLUGIN_PATH', HGM_PLUGIN_PATH);
+define('IEB_PLUGIN_URL', HGM_PLUGIN_URL);
 
 
 // Load core includes
@@ -43,11 +48,11 @@ require_once HGM_PLUGIN_PATH . 'includes/support.php';
 function hgm_register_cpts() {
     register_post_type('instant_quote_form', [
         'labels' => [
-            'name' => 'Quote Forms',
-            'singular_name' => 'Quote Form',
-            'add_new_item' => 'Add New Quote Form',
-            'edit_item' => 'Edit Quote Form',
-            'menu_name' => 'Quote Forms',
+            'name' => 'Estimate Forms',
+            'singular_name' => 'Estimate Form',
+            'add_new_item' => 'Add New Estimate Form',
+            'edit_item' => 'Edit Estimate Form',
+            'menu_name' => 'Estimate Forms',
         ],
         'public' => false,
         'show_ui' => true,
@@ -82,8 +87,8 @@ add_action('admin_menu', function () {
 add_action('admin_menu', function() {
     // Main menu item
     add_menu_page(
-        'HVAC Instant Quote Generator',
-        'HVAC Instant Quote Generator',
+        'Instant Estimate Builder',
+        'Instant Estimate Builder',
         'manage_options',
         'hgm_quote_generator',
         'hgm_render_dashboard_page',
@@ -91,19 +96,19 @@ add_action('admin_menu', function() {
         25
     );
 
-    // CPT: Quote Forms
+    // CPT: Estimate Forms
     add_submenu_page(
         'hgm_quote_generator',
-        'Quote Forms',
-        'Quote Forms',
+        'Estimate Forms',
+        'Estimate Forms',
         'manage_options',
         'edit.php?post_type=instant_quote_form'
     );
 
     add_submenu_page(
         'hgm_quote_generator',
-        'Add New Quote Form',
-        'Add New Quote Form',
+        'Add New Estimate Form',
+        'Add New Estimate Form',
         'manage_options',
         'post-new.php?post_type=instant_quote_form'
     );
@@ -147,11 +152,11 @@ add_action('admin_menu', function() {
         'hgm_render_view_lead_screen'
     );
 
-    // Hidden edit quote form
+    // Hidden edit estimate form
     add_submenu_page(
         null,
-        'Edit Quote Form',
-        'Edit Quote Form',
+        'Edit Estimate Form',
+        'Edit Estimate Form',
         'manage_options',
         'post.php',
         ''
@@ -274,11 +279,11 @@ add_action('admin_enqueue_scripts', function ($hook) {
     );
 });
 
-// Load admin.js + localize data for Quote Form edit screen
+// Load admin.js + localize data for Estimate Form edit screen
 add_action('admin_enqueue_scripts', function ($hook) {
     global $post;
 
-    // Only run on the Quote Form editor screen
+    // Only run on the Estimate Form editor screen
     if ($hook === 'post.php' || $hook === 'post-new.php') {
         $screen = get_current_screen();
         if ($screen && $screen->post_type === 'instant_quote_form') {
@@ -298,7 +303,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
                 true
             );
 
-            // Localize quote form data
+            // Localize estimate form data
             wp_localize_script('hgm-admin-js', 'hgmQuoteFormData', [
                 'postId' => get_the_ID(),
                 'nonce'  => wp_create_nonce('hgm_nonce'),
@@ -328,7 +333,7 @@ function hgm_save_quote_form_data_callback() {
 }
 
 
-// --- Instant Quote Preview (query-string version) ---
+// --- Instant Estimate Preview (query-string version) ---
 
 // 1) Allow ?quote_form_preview=1 to be read by WP
 add_filter('query_vars', function ($vars) {
@@ -366,99 +371,34 @@ add_action('template_include', function ($template) {
 
 
 /**
- * Check license status from HVACGrowthMachine.com
+ * Legacy license compatibility.
+ *
+ * Instant Estimate Builder is now free, so these helpers return an active/free
+ * status without calling the old remote license server. Function names and
+ * option keys stay in place so existing installs do not fatal or lose settings.
  */
-function hgm_check_license_status($email, $license_key, $product_id, $instance_url) {
-
-    $api_url = 'https://hvacgrowthmachine.com/wp-json/hgm-license/v1/check';
-
-    // The secret token from hvacgrowthmachine.com
-    $secret_token = 'fae60fecabbe38df57903f638d820095b9b5acb916e0518197d83acf5d96f054';
-
-    $response = wp_remote_get(add_query_arg([
-        'email'       => $email,
-        'license_key' => $license_key,
-        'product_id'  => $product_id,
-        'instance'    => $instance_url,
-        'token'       => $secret_token
-    ], $api_url), [
-        'timeout'   => 20,
-        'sslverify' => true
-    ]);
-
-    if (is_wp_error($response)) {
-        return ['status' => 'error', 'message' => 'Could not connect to license server'];
-    }
-
-    $data = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (!is_array($data)) {
-        return ['status' => 'error', 'message' => 'Invalid response from license server'];
-    }
-
-    return $data;
+function hgm_check_license_status($email = '', $license_key = '', $product_id = '', $instance_url = '') {
+    return [
+        'status'  => 'active',
+        'message' => 'Instant Estimate Builder is free to use. No license key is required.',
+    ];
 }
 
-/**
- * Schedule daily license check at 12am PST
- */
 register_activation_hook(__FILE__, function() {
-    if (!wp_next_scheduled('hgm_daily_license_check')) {
-        // Schedule at midnight PST (convert to UTC)
-        $timestamp = strtotime('tomorrow 12:00am America/Los_Angeles');
-        wp_schedule_event($timestamp, 'daily', 'hgm_daily_license_check');
-    }
+    wp_clear_scheduled_hook('hgm_daily_license_check');
+    update_option('hgm_license_status', 'active');
+    update_option('hgm_license_status_cache', 'active');
 });
 
 register_deactivation_hook(__FILE__, function() {
     wp_clear_scheduled_hook('hgm_daily_license_check');
 });
 
-
-/**
- * Cron job to run daily license check. Get and cache license status from hvacgrowthmachine.com
- */
-function hgm_get_cached_license_status($email, $license_key, $product_id, $instance_url) {
-    $cache_key = 'hgm_license_status_cache';
-
-    // 1️⃣ Check cache
-    $cached = get_transient($cache_key);
-    if ($cached !== false) {
-        return $cached;
-    }
-
-    // 2️⃣ Build remote API call
-    $api_url = 'https://hvacgrowthmachine.com/wp-json/hgm-license/v1/check';
-
-    // This is now a public key (safe to be in the plugin)
-    $public_client_key = 'HGM-PUBLIC-001'; 
-
-    $response = wp_remote_get(add_query_arg([
-        'email'       => $email,
-        'license_key' => $license_key,
-        'product_id'  => $product_id,
-        'instance'    => $instance_url,
-        'client_id'   => $public_client_key
-    ], $api_url), [
-        'timeout'   => 20,
-        'sslverify' => true
-    ]);
-
-    // 3️⃣ Handle connection errors
-    if (is_wp_error($response)) {
-        return ['status' => 'error', 'message' => 'Could not connect to license server'];
-    }
-
-    $data = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (!is_array($data)) {
-        return ['status' => 'error', 'message' => 'Invalid response from license server'];
-    }
-
-    // 4️⃣ Cache for 24 hours
-    set_transient($cache_key, $data, DAY_IN_SECONDS);
-
-    return $data;
+function hgm_get_cached_license_status($email = '', $license_key = '', $product_id = '', $instance_url = '') {
+    return [
+        'status'  => 'active',
+        'message' => 'Instant Estimate Builder is free to use. No license key is required.',
+    ];
 }
 
 // Provide custom plugin info for the "View details" modal.
@@ -478,16 +418,16 @@ add_filter('plugins_api', function ($result, $action, $args) {
     $icon_2x = HGM_PLUGIN_URL . 'assets/plugin-icon@x.png';
 
     return (object) [
-        'name'           => 'HVAC Instant Quote Generator',
-        'slug'           => 'hvac-quote-generator',
-        'version'        => '1.0.1',
-        'author'         => '<a href="https://hvacgrowthmachine.com/">HVAC Growth Machine</a>',
-        'author_profile' => 'https://hvacgrowthmachine.com/',
-        'homepage'       => 'https://hvacgrowthmachine.com/instant-hvac-quote-plugin/',
+        'name'           => 'Instant Estimate Builder',
+        'slug'           => 'hvac-quote-generator', // Legacy slug kept so existing installs can still see update details.
+        'version'        => '1.0.6',
+        'author'         => '<a href="https://taggartmediagroup.com/">Taggart Media Group</a>',
+        'author_profile' => 'https://taggartmediagroup.com/',
+        'homepage'       => 'https://taggartmediagroup.com/',
         'requires'       => '5.4',
         'tested'         => $tested_wp,                 // ✅ dynamic
         'requires_php'   => '7.4',                      // ✅ helpful metadata
-        'download_link'  => 'https://hvacgrowthmachine.com/hgm-plugin/plugin/hvac-quote-generator-1.0.1.zip',
+        'download_link'  => 'https://github.com/tonjaggart/instant-estimate-builder/releases/latest',
 
         // NEW: show an icon in the “View details” modal
         'icons' => [
@@ -498,7 +438,7 @@ add_filter('plugins_api', function ($result, $action, $args) {
 
         'sections' => [
             'description' => '
-                <p>The HVAC Instant Quote Generator turns your site into a lead machine.</p>
+                <p>Instant Estimate Builder helps local service businesses turn website visitors into estimate-ready leads.</p>
                 <ul>
                     <li>Multi‑step form with dynamic pricing</li>
                     <li>Automatic estimate email to the customer</li>
@@ -507,8 +447,8 @@ add_filter('plugins_api', function ($result, $action, $args) {
                 </ul>
             ',
             'changelog' => '
-                <h4>1.0.1</h4>
-                <ul><li>Initial public release</li></ul>
+                <h4>1.0.6</h4>
+                <ul><li>Rebranded user-facing plugin experience for broader local-service use.</li></ul>
             ',
         ],
     ];

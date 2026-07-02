@@ -7,7 +7,7 @@ function hgm_add_quote_form_metabox()
 {
     add_meta_box(
         "hgm_quote_form_config",
-        "Instant Quote Generator",
+        "Instant Estimate Builder",
         "hgm_render_quote_form_edit_screen", // ✅ this is correct
         "instant_quote_form",
         "normal",
@@ -35,8 +35,8 @@ function hgm_render_quote_form_edit_screen()
     echo "<script>window.hgm_quote_questions = " . $encoded_data . ";</script>";
 
     echo '<div id="hgm-form-builder">';
-    echo '<h3 style="margin-bottom: 10px;">Build Your Instant Quote Generator</h3>';
-    echo "<p><em>Click “Add a Question” to begin building your instant quote form.</em></p>";
+    echo '<h3 style="margin-bottom: 10px;">Build Your Instant Estimate Form</h3>';
+    echo "<p><em>Click “Add a Question” to begin building your instant estimate form.</em></p>";
     echo '<div id="hgm-steps-container"></div>';
 
     $form_preview_url = add_query_arg(
@@ -397,7 +397,7 @@ function hgm_render_view_lead_screen()
         // Get the form post ID associated with this lead
         $form_post_id = get_post_meta($lead_id, "_hgm_form_id", true);
 
-        // Retrieve form steps meta from quote form post
+        // Retrieve form steps meta from estimate form post
         $form_steps_raw = get_post_meta($form_post_id, "_hgm_form_data", true);
 
         if (is_string($form_steps_raw)) {
@@ -612,7 +612,7 @@ function hgm_render_form_shortcode_box($post)
 
         </tr>
         <tr>
-            <th scope="row">Embed the Quote Form:</th>
+            <th scope="row">Embed the Estimate Form:</th>
             <td>
                 <code id="hgm-quote-shortcode"><?php echo esc_html($shortcode); ?></code>
                 <button type="button" class="button" id="copy-hgm-shortcode" style="margin-left: 10px;">Copy Shortcode</button>

@@ -325,6 +325,12 @@ add_action('admin_enqueue_scripts', function ($hook) {
             // Enqueue admin.js and dependencies
             wp_enqueue_style('wp-color-picker');
             wp_enqueue_style(
+                'hgm-dashboard-css',
+                HGM_PLUGIN_URL . 'assets/dashboard.css',
+                [],
+                filemtime(HGM_PLUGIN_PATH . 'assets/dashboard.css')
+            );
+            wp_enqueue_style(
                 'hgm-admin-css',
                 HGM_PLUGIN_URL . 'assets/admin.css',
                 [],
@@ -395,7 +401,7 @@ add_action('template_include', function ($template) {
     ob_start();
     get_header();
     echo '<div class="instant-quote-preview-container" style="max-width:900px;margin:30px auto;">';
-    echo do_shortcode('[instant_quote_form id="' . $form_id . '"]');
+    echo do_shortcode('[instant_estimate_form id="' . $form_id . '"]');
     echo '</div>';
     get_footer();
     echo ob_get_clean();

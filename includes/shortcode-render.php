@@ -66,4 +66,5 @@ function render_instant_quote_form_shortcode($atts) {
 
     return ob_get_clean();
 }
+add_shortcode('instant_estimate_form', 'render_instant_quote_form_shortcode');
 add_shortcode('instant_quote_form', 'render_instant_quote_form_shortcode');

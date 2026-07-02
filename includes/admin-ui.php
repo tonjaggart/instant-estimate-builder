@@ -17,6 +17,38 @@ function hgm_add_quote_form_metabox()
 
 add_action("add_meta_boxes", "hgm_add_quote_form_metabox");
 
+add_action('edit_form_top', 'hgm_render_estimate_form_editor_header');
+function hgm_render_estimate_form_editor_header($post)
+{
+    if (!$post || $post->post_type !== 'instant_quote_form') {
+        return;
+    }
+
+    $form_id = absint($post->ID);
+    $title = get_the_title($form_id) ?: 'Untitled Estimate Form';
+    $forms_url = admin_url('admin.php?page=instant-estimate-forms');
+    $new_url = admin_url('post-new.php?post_type=instant_quote_form');
+    $preview_url = add_query_arg(
+        [
+            'quote_form_preview' => 1,
+            'form_id'            => $form_id,
+        ],
+        home_url('/')
+    );
+    ?>
+    <section class="hgm-dashboard-hero ieb-edit-hero">
+        <div class="hgm-dashboard-eyebrow">Estimate Form Editor</div>
+        <h1>Edit Estimate Form</h1>
+        <p class="hgm-dashboard-subtitle">Update <?php echo esc_html($title); ?> settings, embed shortcode, and builder questions in one place.</p>
+        <div class="hgm-dashboard-actions">
+            <a href="<?php echo esc_url($forms_url); ?>" class="button hgm-button-secondary">Back To Estimate Forms</a>
+            <a href="<?php echo esc_url($preview_url); ?>" target="_blank" rel="noopener" class="button hgm-button-secondary">Preview Form</a>
+            <a href="<?php echo esc_url($new_url); ?>" class="button button-primary hgm-button-primary">Add New Estimate Form</a>
+        </div>
+    </section>
+    <?php
+}
+
 function hgm_render_quote_form_edit_screen()
 {
     global $post;
@@ -85,7 +117,12 @@ function hgm_enqueue_admin_assets($hook)
     if ($hook !== "post.php" && $hook !== "post-new.php") {
         return;
     }
-    // ✅ Make sure this is its own statement with a semicolon
+
+    $screen = get_current_screen();
+    if (!$screen || $screen->post_type !== 'instant_quote_form') {
+        return;
+    }
+
     wp_enqueue_media();
 
     wp_enqueue_script(
@@ -110,7 +147,18 @@ function hgm_enqueue_admin_assets($hook)
         filemtime(plugin_dir_path(dirname(__FILE__)) . "assets/admin.js"),
         true
     );
-    wp_enqueue_style("hgm-admin-css", plugin_dir_url(dirname(__FILE__)) . "assets/admin.css");
+    wp_enqueue_style(
+        "hgm-dashboard-css",
+        plugin_dir_url(dirname(__FILE__)) . "assets/dashboard.css",
+        [],
+        filemtime(plugin_dir_path(dirname(__FILE__)) . "assets/dashboard.css")
+    );
+    wp_enqueue_style(
+        "hgm-admin-css",
+        plugin_dir_url(dirname(__FILE__)) . "assets/admin.css",
+        [],
+        filemtime(plugin_dir_path(dirname(__FILE__)) . "assets/admin.css")
+    );
 }
 add_action("admin_enqueue_scripts", "hgm_enqueue_admin_assets");
 
@@ -573,99 +621,93 @@ function hgm_render_form_shortcode_box($post)
         return;
     }
 
-    $shortcode = '[instant_quote_form id="' . esc_attr($form_id) . '"]';
-    $button_color = get_post_meta($post->ID, '_hgm_quote_button_color', true) ?: '#013c55'; ?>
-                         <div style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px; margin: 20px 0;">
-<h3>Form Settings</h3>
-<table class="form-table" role="presentation">
-    <tbody>
-        <tr>
-            <th scope="row">
-                <label for="hgm_quote_button_color">Form Primary Color:</label>
-            </th>
-            <td>
-                <input type="text"
-                       id="hgm_quote_button_color"
-                       name="hgm_quote_button_color"
-                       value="<?php echo esc_attr($button_color); ?>"
-                       class="hgm-quote-form-color"
-                       data-default-color="#E84232" />
-                <p class="description">Choose a color for the form button.</p>
-            </td>
-        </tr>
-        <?php $subject = get_post_meta($post->ID, 'hgm_email_subject', true);?>
-        <tr>
-            <th scope="row">
-                <label for="hgm_email_subject">Email Subject Line:</label>
-            </th>
-            <td>
-                <input type="text"
-                       id="hgm_email_subject"
-                       name="hgm_email_subject"
-                       value="<?php echo esc_attr($subject); ?>"
-                       class="regular-text"
-                       placeholder="Your HVAC Estimate is Ready!" />
-                <p class="description">
-                    Customize the subject line. The customer’s first name will always be added automatically. e.g. Jon - Your Custom Subject Line Here
-                </p>
-            </td>
+    $shortcode = '[instant_estimate_form id="' . esc_attr($form_id) . '"]';
+    $button_color = get_post_meta($post->ID, '_hgm_quote_button_color', true) ?: '#013c55';
+    $subject = get_post_meta($post->ID, 'hgm_email_subject', true);
 
-        </tr>
-        <tr>
-            <th scope="row">Embed the Estimate Form:</th>
-            <td>
-                <code id="hgm-quote-shortcode"><?php echo esc_html($shortcode); ?></code>
-                <button type="button" class="button" id="copy-hgm-shortcode" style="margin-left: 10px;">Copy Shortcode</button>
-                <p class="description">Copy and paste this shortcode on any page or post to load your form.</p>
-            </td>
-        </tr>
-        <?php
     // ======================
     // KLAVIYO SETTINGS (FORM LEVEL)
     // ======================
-
-    // Get saved values
     $klaviyo_enabled = get_post_meta($post->ID, 'hgm_enable_klaviyo', true);
     $klaviyo_list_id = get_post_meta($post->ID, 'hgm_klaviyo_list_id', true);
-
-    // Only show if API key exists
     $api_key = get_option('hgm_klaviyo_api_key');
-        ?>
-
-        <?php if (!empty($api_key)) : ?>
-
-        <tr>
-            <th scope="row">
-                <label for="hgm_enable_klaviyo">Enable Klaviyo</label>
-            </th>
-            <td>
-                <input type="checkbox"
-                       id="hgm_enable_klaviyo"
-                       name="hgm_enable_klaviyo"
-                       value="1"
-                       <?php checked($klaviyo_enabled, 1); ?> />
-                <p class="description">Send this form’s leads to Klaviyo</p>
-            </td>
-        </tr>
-
-        <tr class="hgm-klaviyo-list-row" style="<?php echo $klaviyo_enabled ? '' : 'display:none;'; ?>">
-            <th scope="row">
-                <label for="hgm_klaviyo_list_id">Klaviyo List ID</label>
-            </th>
-            <td>
-                <input type="text"
-                       id="hgm_klaviyo_list_id"
-                       name="hgm_klaviyo_list_id"
-                       value="<?php echo esc_attr($klaviyo_list_id); ?>"
-                       class="regular-text"
-                       placeholder="e.g. XhDyw7" />
-                <p class="description">Enter the Klaviyo List ID to send leads to</p>
-            </td>
-        </tr>
-
-        <?php endif; ?>
-    </tbody>
-</table>
+    ?>
+<div class="ieb-edit-card ieb-form-settings-card">
+    <div class="hgm-card-label">Form Settings</div>
+    <h2>Form Settings</h2>
+    <table class="form-table ieb-settings-table" role="presentation">
+        <tbody>
+            <tr>
+                <th scope="row">
+                    <label for="hgm_quote_button_color">Form Primary Color</label>
+                </th>
+                <td>
+                    <input type="text"
+                           id="hgm_quote_button_color"
+                           name="hgm_quote_button_color"
+                           value="<?php echo esc_attr($button_color); ?>"
+                           class="hgm-quote-form-color"
+                           data-default-color="#E84232" />
+                    <p class="description">Choose a color for the form button.</p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    <label for="hgm_email_subject">Email Subject Line</label>
+                </th>
+                <td>
+                    <input type="text"
+                           id="hgm_email_subject"
+                           name="hgm_email_subject"
+                           value="<?php echo esc_attr($subject); ?>"
+                           class="regular-text"
+                           placeholder="Your HVAC Estimate is Ready!" />
+                    <p class="description">
+                        Customize the subject line. The customer’s first name will always be added automatically. e.g. Jon - Your Custom Subject Line Here
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">Embed The Estimate Form</th>
+                <td>
+                    <div class="ieb-shortcode-row">
+                        <code id="hgm-quote-shortcode" class="ieb-shortcode-code"><?php echo esc_html($shortcode); ?></code>
+                        <button type="button" class="button hgm-button-secondary" id="copy-hgm-shortcode">Copy Shortcode</button>
+                    </div>
+                    <p class="description">Copy and paste this shortcode on any page or post to load your form.</p>
+                </td>
+            </tr>
+            <?php if (!empty($api_key)) : ?>
+                <tr>
+                    <th scope="row">
+                        <label for="hgm_enable_klaviyo">Enable Klaviyo</label>
+                    </th>
+                    <td>
+                        <input type="checkbox"
+                               id="hgm_enable_klaviyo"
+                               name="hgm_enable_klaviyo"
+                               value="1"
+                               <?php checked($klaviyo_enabled, 1); ?> />
+                        <p class="description">Send this form’s leads to Klaviyo.</p>
+                    </td>
+                </tr>
+                <tr class="hgm-klaviyo-list-row" style="<?php echo $klaviyo_enabled ? '' : 'display:none;'; ?>">
+                    <th scope="row">
+                        <label for="hgm_klaviyo_list_id">Klaviyo List ID</label>
+                    </th>
+                    <td>
+                        <input type="text"
+                               id="hgm_klaviyo_list_id"
+                               name="hgm_klaviyo_list_id"
+                               value="<?php echo esc_attr($klaviyo_list_id); ?>"
+                               class="regular-text"
+                               placeholder="e.g. XhDyw7" />
+                        <p class="description">Enter the Klaviyo List ID to send leads to.</p>
+                    </td>
+                </tr>
+            <?php endif; ?>
+        </tbody>
+    </table>
 </div>
 <script>
     document.addEventListener("DOMContentLoaded", function () {

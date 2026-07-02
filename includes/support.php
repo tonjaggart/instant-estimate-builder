@@ -93,7 +93,7 @@ function hgm_render_support_page() {
             'id'      => 'embed-shortcode',
             'title'   => 'How to add your HVAC instant estimate form to your website',
             'video'   => 'https://www.loom.com/share/1468e892cc004c1dadd05f054c358ba2?sid=fe6ebddd-4c4e-499e-9aac-b23654749aca',
-            'content' => '<p>Edit a page and paste the shortcode like <code>[instant_quote_form id="123"]</code> where you want the form to appear.</p>',
+            'content' => '<p>Edit a page and paste the shortcode like <code>[instant_estimate_form id="123"]</code> where you want the form to appear.</p>',
         ],
     ];
 

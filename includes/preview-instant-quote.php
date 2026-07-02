@@ -14,7 +14,7 @@ if (!$post_id) {
 }
 
 // Replace this with your actual shortcode or form render function
-$form_shortcode = '[instant_quote_form id="' . $post_id . '"]';
+$form_shortcode = '[instant_estimate_form id="' . $post_id . '"]';
 
 get_header();
 ?>

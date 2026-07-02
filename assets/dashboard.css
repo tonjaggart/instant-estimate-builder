@@ -654,3 +654,168 @@
         max-width: none;
     }
 }
+
+/* Notifications settings page */
+.ieb-notifications-page {
+    padding-bottom: 56px;
+}
+
+.ieb-notifications-hero {
+    margin-bottom: 22px;
+}
+
+.ieb-notifications-card {
+    max-width: 1180px;
+    min-height: 0;
+}
+
+.ieb-notifications-card > h2 {
+    margin-bottom: 10px;
+    font-size: 28px;
+}
+
+.ieb-notifications-form {
+    margin-top: 24px;
+}
+
+.ieb-notification-field-row {
+    display: grid;
+    grid-template-columns: 290px minmax(0, 1fr);
+    gap: 28px;
+    padding: 22px 0;
+    border-top: 1px solid #eef2f7;
+}
+
+.ieb-notification-field-row:first-of-type {
+    border-top: 0;
+}
+
+.ieb-notification-field-row > label {
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.45;
+}
+
+.ieb-notification-textarea,
+.ieb-notification-input.regular-text,
+.ieb-notification-select {
+    width: 100%;
+    max-width: 680px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    color: #0f172a;
+    font-size: 15px;
+    box-shadow: none;
+}
+
+.ieb-notification-textarea {
+    min-height: 150px;
+    line-height: 1.6;
+}
+
+.ieb-notification-textarea:focus,
+.ieb-notification-input.regular-text:focus,
+.ieb-notification-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    outline: none;
+}
+
+.ieb-sms-recipient-list {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.sms-recipient-row,
+.ieb-sms-recipient-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto;
+    align-items: center;
+    gap: 12px;
+    max-width: 760px;
+    margin-bottom: 0 !important;
+}
+
+.sms-recipient-row .regular-text {
+    min-height: 44px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    box-shadow: none;
+}
+
+.sms-recipient-row select {
+    min-height: 44px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    box-shadow: none;
+}
+
+.ieb-remove-recipient,
+.remove-recipient {
+    color: #b91c1c;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.ieb-remove-recipient:hover,
+.ieb-remove-recipient:focus,
+.remove-recipient:hover,
+.remove-recipient:focus {
+    color: #991b1b;
+    text-decoration: underline;
+}
+
+.ieb-add-recipient-button.button {
+    min-height: 42px;
+    border-color: #bfdbfe;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 800;
+}
+
+.ieb-add-recipient-button.button:hover,
+.ieb-add-recipient-button.button:focus {
+    border-color: #93c5fd;
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.ieb-notification-save-button.button.button-primary {
+    min-height: 48px;
+    padding: 10px 24px;
+    border-color: #2563eb;
+    border-radius: 999px;
+    background: #2563eb;
+    font-size: 15px;
+    font-weight: 800;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
+}
+
+.ieb-notification-save-button.button.button-primary:hover,
+.ieb-notification-save-button.button.button-primary:focus {
+    border-color: #1d4ed8;
+    background: #1d4ed8;
+}
+
+.ieb-notifications-form .submit {
+    margin-top: 18px;
+    padding-top: 10px;
+}
+
+@media (max-width: 900px) {
+    .ieb-notification-field-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .sms-recipient-row,
+    .ieb-sms-recipient-row {
+        grid-template-columns: 1fr;
+        max-width: 680px;
+    }
+}

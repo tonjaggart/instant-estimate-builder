@@ -68,6 +68,12 @@ add_action('admin_init', function () {
         exit;
     }
 
+    if (isset($_GET['page']) && $_GET['page'] === 'hgm-notifications-settings') {
+        $tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'email';
+        wp_safe_redirect(admin_url('admin.php?page=instant-estimate-notifications&tab=' . $tab));
+        exit;
+    }
+
     if (isset($_GET['post_type']) && $_GET['post_type'] === 'instant_quote_form' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
         wp_safe_redirect(admin_url('admin.php?page=instant-estimate-forms'));
         exit;
@@ -171,7 +177,7 @@ add_action('admin_menu', function() {
         'Notifications',
         'Notifications',
         'manage_options',
-        'hgm-notifications-settings',
+        'instant-estimate-notifications',
         'hgm_render_notifications_settings_page' // This is defined in notifications-settings.php
     );
 
@@ -252,6 +258,7 @@ add_filter('parent_file', function ($parent_file) {
         $current_screen->post_type === 'instant_quote_form' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-forms' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-email-settings' ||
+        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-notifications' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-view-lead' ||
         (isset($_GET['page']) && $_GET['page'] === 'hgm-view-lead')
     ) {
@@ -270,6 +277,10 @@ add_filter('submenu_file', function ($submenu_file) {
         return 'instant-estimate-email-settings';
     }
 
+    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-notifications') {
+        return 'instant-estimate-notifications';
+    }
+
     if (isset($_GET['page']) && $_GET['page'] === 'hgm_view_lead') {
         return 'edit.php?post_type=hgm_lead'; // Match existing submenu item
     }
@@ -281,11 +292,12 @@ add_action('admin_init', function () {
     register_setting('hgm_email_settings', 'hgm_email_settings', [
         'type' => 'array',
         'sanitize_callback' => function ($input) {
+            $existing = get_option('hgm_email_settings', []);
             if (isset($input['sales_team_emails'])) {
                 $input['sales_team_emails'] = sanitize_textarea_field($input['sales_team_emails']);
             }
-            // Sanitize other fields as needed...
-            return $input;
+            // Preserve the estimate email template settings when this notifications form saves only the sales-team field.
+            return array_merge(is_array($existing) ? $existing : [], is_array($input) ? $input : []);
         },
         'default' => [],
     ]);

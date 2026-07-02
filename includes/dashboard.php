@@ -53,7 +53,7 @@ function hgm_render_dashboard_page() {
     echo '<div class="hgm-link-list">';
     echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-forms')) . '">Manage Estimate Forms</a>';
     echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-form')) . '">Add New Estimate Form</a>';
-    echo '<a href="' . esc_url(admin_url('admin.php?page=hgm-notifications-settings')) . '">Notification Settings</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-notifications')) . '">Notification Settings</a>';
     echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-email-settings')) . '">Email Settings</a>';
     echo '</div>';
     echo '</div>';

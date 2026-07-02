@@ -364,10 +364,10 @@ add_action(
 add_action("admin_menu", function () {
     add_submenu_page(
         null, // Hidden from the menu
-        "View Lead Details", // Page title
-        "View Lead Details", // Menu title (unused here)
+        "Instant Estimate Lead Details", // Page title
+        "Instant Estimate Lead Details", // Menu title (unused here)
         "edit_posts", // Capability (same as for your CPT)
-        "hgm_view_lead", // Page slug
+        "instant-estimate-lead", // Page slug
         "hgm_render_view_lead_screen" // Callback function
     );
 });
@@ -375,11 +375,7 @@ add_action("admin_menu", function () {
 function hgm_render_view_lead_screen()
 {
     error_log("Plugin page: " . ($_GET["page"] ?? "none"));
-    echo '<div style="margin: 20px 0 20px;">';
-    echo '<a href="' .
-        esc_url(admin_url("admin.php?page=instant-estimate-leads")) .
-        '" class="button button-primary">&larr; Back to All Leads</a>';
-    echo "</div>";
+
     if (!current_user_can("edit_posts")) {
         wp_die(__("You are not allowed to access this page."));
     }
@@ -387,55 +383,72 @@ function hgm_render_view_lead_screen()
     $lead_id = isset($_GET["id"]) ? intval($_GET["id"]) : 0;
 
     if (!$lead_id) {
-        echo '<div class="notice notice-error"><p>Invalid lead ID.</p></div>';
+        echo '<div class="wrap hgm-dashboard ieb-lead-detail-page"><div class="notice notice-error"><p>Invalid lead ID.</p></div></div>';
         return;
     }
 
     $post = get_post($lead_id);
     if (!$post || $post->post_type !== "hgm_lead") {
-        echo '<div class="notice notice-error"><p>Lead not found.</p></div>';
+        echo '<div class="wrap hgm-dashboard ieb-lead-detail-page"><div class="notice notice-error"><p>Lead not found.</p></div></div>';
         return;
     }
 
     $email = get_post_meta($lead_id, "email", true);
     $phone = get_post_meta($lead_id, "phone", true);
     $zip = get_post_meta($lead_id, "zip_code", true);
-    $estimate =
-        get_post_meta($lead_id, "_hgm_estimate_low", true) .
-        " – " .
-        get_post_meta($lead_id, "_hgm_estimate_high", true);
+    $estimate_low = get_post_meta($lead_id, "_hgm_estimate_low", true);
+    $estimate_high = get_post_meta($lead_id, "_hgm_estimate_high", true);
+    $estimate = ($estimate_low || $estimate_high) ? trim($estimate_low . " – " . $estimate_high, " –") : "—";
+    $submitted_at = get_the_date("M j, Y g:i a", $lead_id);
 
-    echo '<div class="wrap">';
-    echo "<h1>Lead Details</h1>";
+    echo '<div class="wrap hgm-dashboard ieb-lead-detail-page">';
+    echo '<section class="hgm-dashboard-hero ieb-lead-detail-hero">';
+    echo '<div class="hgm-dashboard-eyebrow">Lead Record</div>';
+    echo '<h1>Instant Estimate Lead Details</h1>';
+    echo '<p class="hgm-dashboard-subtitle">Review this lead\'s contact information, submitted estimate answers, and internal follow-up notes.</p>';
+    echo '<div class="hgm-dashboard-actions">';
+    echo '<a href="' . esc_url(admin_url("admin.php?page=instant-estimate-leads")) . '" class="button button-primary hgm-button-primary">&larr; Back To Leads</a>';
+    echo '<a href="' . esc_url(admin_url("admin.php?page=" . IEB_ADMIN_MENU_SLUG)) . '" class="button hgm-button-secondary">Back To Dashboard</a>';
+    echo '</div>';
+    echo '</section>';
 
-    echo "<h2>Summary</h2>";
-    echo '<table class="widefat fixed striped">';
+    echo '<div class="hgm-dashboard-card ieb-lead-detail-summary-card">';
+    echo '<div class="hgm-card-label">Summary</div>';
+    echo '<h2>Lead Summary</h2>';
+    echo '<div class="ieb-leads-table-wrap ieb-lead-detail-summary-wrap">';
+    echo '<table class="widefat fixed striped ieb-leads-table ieb-lead-detail-summary-table">';
     echo "<thead><tr>";
     echo "<th>Name</th>";
     echo "<th>Email</th>";
     echo "<th>Phone</th>";
-    echo "<th>Zip Code</th>";
+    echo "<th>ZIP Code</th>";
     echo "<th>Estimate</th>";
+    echo "<th>Submitted</th>";
     echo "</tr></thead>";
     echo "<tbody><tr>";
-    echo "<td>" . esc_html($post->post_title) . "</td>";
-    echo "<td>" . esc_html($email) . "</td>";
-    echo "<td>" . esc_html($phone) . "</td>";
-    echo "<td>" . esc_html($zip) . "</td>";
+    echo "<td><strong>" . esc_html($post->post_title ?: "Untitled Lead") . "</strong></td>";
+    echo "<td>" . esc_html($email ?: "—") . "</td>";
+    echo "<td>" . esc_html($phone ?: "—") . "</td>";
+    echo "<td>" . esc_html($zip ?: "—") . "</td>";
     echo "<td>" . esc_html($estimate) . "</td>";
+    echo "<td>" . esc_html($submitted_at ?: "—") . "</td>";
     echo "</tr></tbody>";
     echo "</table>";
+    echo "</div>";
+    echo "</div>";
 
-    echo '<div class="hgm-flex-row" style="display:flex; gap: 20px;">';
+    echo '<div class="ieb-lead-detail-grid">';
 
     $form_data_raw = get_post_meta($lead_id, "_hgm_form_data", true);
 
     $form_data = is_string($form_data_raw) ? json_decode($form_data_raw, true) : $form_data_raw;
 
-    // ✅ Left column: Answers table
-    echo '<div style="width:50%;">';
-    echo '<h2 style="margin-bottom:0px;">Answers</h2><p style="margin-top:0px;">All of the answers the lead provided.</p>';
-    echo '<table class="widefat fixed striped">';
+    // Left column: Answers table
+    echo '<div class="hgm-dashboard-card ieb-lead-detail-card ieb-lead-answers-card">';
+    echo '<div class="hgm-card-label">Submitted Answers</div>';
+    echo '<h2>Answers</h2><p>All of the answers the lead provided.</p>';
+    echo '<div class="ieb-leads-table-wrap">';
+    echo '<table class="widefat fixed striped ieb-leads-table ieb-lead-answers-table">';
     echo "<thead><tr>";
     echo '<th style="width: 50%;">Question</th>';
     echo "<th>Answer</th>";
@@ -490,11 +503,13 @@ function hgm_render_view_lead_screen()
     }
 
     echo "</tbody></table>";
+    echo "</div>"; // End answers table wrap
     echo "</div>"; // End left column
 
-    // ✅ Right column: Notes textarea with styles
-    echo '<div style="width: 50%; float: right;">';
-    echo '<h2 style="margin-bottom:0px;">Internal Notes <span id="hgm-save-status" style="margin-left: 10px; font-size: 14px; color: green;"></span></h2><p style="margin-top:0px;">⚠️ Notes save automatically in a couple of seconds after you stop typing.</p>';
+    // Right column: Notes editor
+    echo '<div class="hgm-dashboard-card ieb-lead-detail-card ieb-lead-notes-card">';
+    echo '<div class="hgm-card-label">Follow Up</div>';
+    echo '<h2>Internal Notes <span id="hgm-save-status"></span></h2><p class="ieb-lead-notes-help">Notes save automatically a couple of seconds after you stop typing.</p>';
 
     $notes = get_post_meta($lead_id, "_hgm_lead_notes", true);
     wp_editor($notes, "hgm_lead_notes_editor", [

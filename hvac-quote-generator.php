@@ -62,6 +62,12 @@ add_action('admin_init', function () {
         exit;
     }
 
+    if (isset($_GET['page']) && $_GET['page'] === 'hgm_view_lead') {
+        $lead_id = isset($_GET['id']) ? absint($_GET['id']) : 0;
+        wp_safe_redirect(admin_url('admin.php?page=instant-estimate-lead' . ($lead_id ? '&id=' . $lead_id : '')));
+        exit;
+    }
+
     if (isset($_GET['page']) && $_GET['page'] === 'hgm-email-settings') {
         $tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'customize';
         wp_safe_redirect(admin_url('admin.php?page=instant-estimate-email-settings&tab=' . $tab));
@@ -198,11 +204,11 @@ add_action('admin_menu', function() {
 
     // Hidden lead details page
     add_submenu_page(
-        'edit.php?post_type=hgm_lead',
-        'View Lead Details',
-        '', // hidden
+        null,
+        'Instant Estimate Lead Details',
+        'Instant Estimate Lead Details',
         'edit_posts',
-        'hgm_view_lead',
+        'instant-estimate-lead',
         'hgm_render_view_lead_screen'
     );
 
@@ -216,14 +222,14 @@ add_action('admin_menu', function() {
         ''
     );
 
-    // Hidden view lead page (duplicate safety)
+    // Hidden legacy view lead page redirects to the productized slug.
     add_submenu_page(
         null,
-        'View Lead Details',
-        'View Lead Details',
+        'Legacy Lead Details',
+        'Legacy Lead Details',
         'edit_posts',
         'hgm_view_lead',
-        'hgm_render_view_lead_screen'
+        '__return_null'
     );
 
     // Integrations Page
@@ -266,7 +272,9 @@ add_filter('parent_file', function ($parent_file) {
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-email-settings' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-notifications' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-leads' ||
+        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-lead' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-view-lead' ||
+        (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-lead') ||
         (isset($_GET['page']) && $_GET['page'] === 'hgm_view_lead') ||
         (isset($_GET['page']) && $_GET['page'] === 'hgm-view-lead')
     ) {
@@ -290,6 +298,10 @@ add_filter('submenu_file', function ($submenu_file) {
     }
 
     if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-leads') {
+        return 'instant-estimate-leads';
+    }
+
+    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-lead') {
         return 'instant-estimate-leads';
     }
 

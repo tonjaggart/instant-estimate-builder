@@ -412,7 +412,7 @@ function hgm_submit_quote_form() {
         $estimate_high = get_post_meta($lead_id, '_hgm_estimate_high', true);
 
         // ✅ Correct edit link for the custom view page
-        $edit_link = admin_url('admin.php?page=hgm_view_lead&id=' . $lead_id);
+        $edit_link = admin_url('admin.php?page=instant-estimate-lead&id=' . $lead_id);
 
         // ✅ Build the SMS body
         // Use the sanitized submit value first, then fall back to saved lead meta.

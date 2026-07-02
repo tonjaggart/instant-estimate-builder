@@ -34,7 +34,7 @@ add_action('manage_hgm_lead_posts_custom_column', function($column, $post_id) {
             echo ($low && $high) ? esc_html("$low – $high") : '—';
             break;
         case 'view':
-            $url = admin_url('admin.php?page=hgm_view_lead&id=' . $post_id);
+            $url = admin_url('admin.php?page=instant-estimate-lead&id=' . $post_id);
             echo '<a class="button button-primary" href="' . esc_url($url) . '">🔎 View Lead Details</a>';
             break;
     }
@@ -95,7 +95,7 @@ function hgm_export_leads_csv_callback() {
 }
 
 add_action('admin_enqueue_scripts', function ($hook) {
-    if (strpos($hook, 'instant-estimate-leads') !== false) {
+    if (strpos($hook, 'instant-estimate-leads') !== false || strpos($hook, 'instant-estimate-lead') !== false) {
         wp_enqueue_style('hgm-dashboard-css', plugin_dir_url(__FILE__) . '../assets/dashboard.css', [], filemtime(plugin_dir_path(__FILE__) . '../assets/dashboard.css'));
     }
 });
@@ -238,7 +238,7 @@ function ieb_render_leads_page() {
         $low = get_post_meta($post_id, '_hgm_estimate_low', true);
         $high = get_post_meta($post_id, '_hgm_estimate_high', true);
         $estimate = ($low && $high) ? "$low – $high" : '—';
-        $detail_url = admin_url('admin.php?page=hgm_view_lead&id=' . $post_id);
+        $detail_url = admin_url('admin.php?page=instant-estimate-lead&id=' . $post_id);
 
         echo '<tr>';
         echo '<td><strong>' . esc_html(get_the_title() ?: 'Untitled Lead') . '</strong></td>';

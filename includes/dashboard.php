@@ -63,7 +63,7 @@ function hgm_render_dashboard_page() {
     echo '<h2>Let Us Build Your First Estimate Form</h2>';
     echo '<p>Want the plugin ready faster? Taggart Media Group can set up your services, pricing ranges, notifications, and styling so you can start capturing estimate-ready leads.</p>';
     echo '<div class="hgm-price-pill">One-Time Setup: $299</div>';
-    echo '<a href="https://taggartmediagroup.com/" target="_blank" rel="noopener" class="button button-primary hgm-button-primary">Get Setup Help</a>';
+    echo '<a href="https://taggartmediagroup.com/" target="_blank" rel="noopener" class="button button-primary hgm-button-primary">Learn More</a>';
     echo '<p class="hgm-dashboard-note">Plugin stays free. Setup help is optional.</p>';
     echo '</div>';
 

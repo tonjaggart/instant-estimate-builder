@@ -85,6 +85,11 @@ add_action('admin_init', function () {
         exit;
     }
 
+    if (isset($_GET['page']) && $_GET['page'] === 'hgm-support') {
+        wp_safe_redirect(admin_url('admin.php?page=instant-estimate-support'));
+        exit;
+    }
+
     if (isset($_GET['page']) && $_GET['page'] === 'hgm-license-settings') {
         wp_safe_redirect(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG));
         exit;
@@ -258,8 +263,8 @@ add_action('admin_menu', function() {
         IEB_ADMIN_MENU_SLUG,   // parent: your top-level plugin menu
         'Support',               // page title
         'Support',               // menu title
-        'manage_options',        // capability
-        'hgm-support',           // menu slug
+        'edit_posts',            // capability
+        'instant-estimate-support', // menu slug
         'hgm_render_support_page'// callback (defined in includes/support.php)
     );
 });
@@ -274,8 +279,10 @@ function ieb_is_plugin_admin_page($screen = null) {
         'instant-estimate-leads',
         'instant-estimate-lead',
         'instant-estimate-integrations',
+        'instant-estimate-support',
         'hgm_view_lead',
         'hgm-integrations',
+        'hgm-support',
         'hgm-view-lead',
     ];
 
@@ -322,6 +329,7 @@ add_filter('submenu_file', function ($submenu_file) {
         'instant-estimate-notifications',
         'instant-estimate-leads',
         'instant-estimate-integrations',
+        'instant-estimate-support',
     ];
 
     if (in_array($page, $plugin_submenus, true)) {

@@ -6,6 +6,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
         'toplevel_page_' . IEB_ADMIN_MENU_SLUG,
         IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-forms',
         IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-integrations',
+        IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-support',
     ];
 
     if (in_array($hook, $dashboard_pages, true)) {

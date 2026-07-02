@@ -58,10 +58,6 @@ function ieb_render_estimate_forms_page() {
 
     foreach ($forms as $form) {
         $edit_url = get_edit_post_link($form->ID, 'raw');
-        $preview_url = add_query_arg([
-            'preview_instant_quote' => 1,
-            'form_id'               => $form->ID,
-        ], home_url('/'));
         $trash_url = get_delete_post_link($form->ID);
         $status = get_post_status_object($form->post_status);
         $status_label = $status ? $status->label : ucfirst($form->post_status);
@@ -72,7 +68,6 @@ function ieb_render_estimate_forms_page() {
         echo '<td>' . esc_html(get_the_modified_date('M j, Y', $form)) . '</td>';
         echo '<td class="ieb-forms-actions">';
         echo '<a href="' . esc_url($edit_url) . '" class="button hgm-button-secondary ieb-table-button">Edit</a>';
-        echo '<a href="' . esc_url($preview_url) . '" target="_blank" rel="noopener" class="button hgm-button-secondary ieb-table-button">Preview</a>';
         echo '<a href="' . esc_url($trash_url) . '" class="button hgm-button-secondary ieb-table-button ieb-table-button-danger">Trash</a>';
         echo '</td>';
         echo '</tr>';

@@ -262,54 +262,104 @@ add_action('admin_menu', function() {
         'hgm_render_support_page'// callback (defined in includes/support.php)
     );
 });
-// Keep custom top-level menu expanded for CPT pages
+function ieb_is_plugin_admin_page($screen = null) {
+    $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+    $plugin_pages = [
+        IEB_ADMIN_MENU_SLUG,
+        'instant-estimate-forms',
+        'instant-estimate-form',
+        'instant-estimate-email-settings',
+        'instant-estimate-notifications',
+        'instant-estimate-leads',
+        'instant-estimate-lead',
+        'hgm_view_lead',
+        'hgm-view-lead',
+    ];
+
+    if ($page && in_array($page, $plugin_pages, true)) {
+        return true;
+    }
+
+    if ($screen && isset($screen->post_type) && $screen->post_type === 'instant_quote_form') {
+        return true;
+    }
+
+    if ($screen && isset($screen->id) && strpos($screen->id, IEB_ADMIN_MENU_SLUG . '_page_') === 0) {
+        return true;
+    }
+
+    return false;
+}
+
+function ieb_is_lead_detail_admin_page() {
+    $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+    return in_array($page, ['instant-estimate-lead', 'hgm_view_lead', 'hgm-view-lead'], true);
+}
+
+// Keep custom top-level menu expanded for plugin pages, including hidden detail pages.
 add_filter('parent_file', function ($parent_file) {
     global $current_screen;
 
-    if (
-        $current_screen->post_type === 'instant_quote_form' ||
-        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-forms' ||
-        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-email-settings' ||
-        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-notifications' ||
-        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-leads' ||
-        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-lead' ||
-        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-view-lead' ||
-        (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-lead') ||
-        (isset($_GET['page']) && $_GET['page'] === 'hgm_view_lead') ||
-        (isset($_GET['page']) && $_GET['page'] === 'hgm-view-lead')
-    ) {
-        $parent_file = IEB_ADMIN_MENU_SLUG;
+    if (ieb_is_plugin_admin_page($current_screen)) {
+        return IEB_ADMIN_MENU_SLUG;
     }
 
     return $parent_file;
-});
+}, 999);
 
 add_filter('submenu_file', function ($submenu_file) {
-    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-forms') {
-        return 'instant-estimate-forms';
-    }
-
-    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-email-settings') {
-        return 'instant-estimate-email-settings';
-    }
-
-    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-notifications') {
-        return 'instant-estimate-notifications';
-    }
-
-    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-leads') {
+    if (ieb_is_lead_detail_admin_page()) {
         return 'instant-estimate-leads';
     }
 
-    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-lead') {
-        return 'instant-estimate-leads';
+    $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+    $plugin_submenus = [
+        'instant-estimate-forms',
+        'instant-estimate-email-settings',
+        'instant-estimate-notifications',
+        'instant-estimate-leads',
+    ];
+
+    if (in_array($page, $plugin_submenus, true)) {
+        return $page;
     }
 
-    if (isset($_GET['page']) && $_GET['page'] === 'hgm_view_lead') {
-        return 'instant-estimate-leads';
-    }
     return $submenu_file;
-});
+}, 999);
+
+add_action('admin_footer', function () {
+    if (!ieb_is_lead_detail_admin_page()) {
+        return;
+    }
+    ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var menu = document.getElementById('toplevel_page_instant-estimate-builder');
+            if (!menu) {
+                return;
+            }
+
+            menu.classList.add('wp-has-current-submenu', 'wp-menu-open');
+            menu.classList.remove('wp-not-current-submenu');
+
+            var topLink = menu.querySelector('a.menu-top');
+            if (topLink) {
+                topLink.classList.add('wp-has-current-submenu', 'wp-menu-open');
+                topLink.classList.remove('wp-not-current-submenu');
+            }
+
+            var leadsLink = menu.querySelector('a[href*="page=instant-estimate-leads"]');
+            if (leadsLink) {
+                leadsLink.classList.add('current');
+                var leadsItem = leadsLink.closest('li');
+                if (leadsItem) {
+                    leadsItem.classList.add('current');
+                }
+            }
+        });
+    </script>
+    <?php
+}, 999);
 
 // Sale team email notifications settings
 add_action('admin_init', function () {

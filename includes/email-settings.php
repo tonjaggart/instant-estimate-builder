@@ -106,6 +106,11 @@ function hgm_render_email_setting_field($args) {
             echo "<input type='text' name='hgm_email_settings[$key]' value='" . esc_attr($value) . "' class='hgm-color-field ieb-email-color-field' />";
             break;
 
+        case 'button_link':
+            echo "<input type='text' name='hgm_email_settings[$key]' value='" . esc_attr($value) . "' class='regular-text ieb-email-input'>";
+            echo "<p class='description ieb-email-field-hint'>Paste the page link or use tel: for a phone number e.g. tel:800-123-4567</p>";
+            break;
+
         default:
             echo "<input type='text' name='hgm_email_settings[$key]' value='" . esc_attr($value) . "' class='regular-text ieb-email-input'>";
             break;
@@ -130,7 +135,7 @@ add_action('admin_init', function () {
         'phone_text'     => 'Phone Text',
         'phone_number'   => 'Phone Number',
         'button_text'    => 'Button Text',
-        'button_link'    => 'Button Link <br>paste the link or use tel: for a phone number e.g. <br>tel:800-123-4567',
+        'button_link'    => 'Button Link',
         'body_copy'      => 'Body Copy',
         'disclaimer'     => 'Disclaimer Text (below estimate)',
         'text_below_btn' => 'Text Below Button',

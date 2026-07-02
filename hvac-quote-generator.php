@@ -30,6 +30,8 @@ define('HGM_PLUGIN_URL', plugin_dir_url(__FILE__));
 // New generic aliases. Legacy HGM constants stay in place for backward compatibility.
 define('IEB_PLUGIN_PATH', HGM_PLUGIN_PATH);
 define('IEB_PLUGIN_URL', HGM_PLUGIN_URL);
+define('IEB_ADMIN_MENU_SLUG', 'instant-estimate-builder');
+define('HGM_LEGACY_ADMIN_MENU_SLUG', 'hgm_quote_generator');
 
 
 // Load core includes
@@ -43,6 +45,17 @@ require_once HGM_PLUGIN_PATH . 'includes/dashboard.php';
 require_once HGM_PLUGIN_PATH . 'includes/integrations.php';
 require_once HGM_PLUGIN_PATH . 'includes/license-settings.php';
 require_once HGM_PLUGIN_PATH . 'includes/support.php';
+
+add_action('admin_init', function () {
+    if (!is_admin() || wp_doing_ajax()) {
+        return;
+    }
+
+    if (isset($_GET['page']) && $_GET['page'] === HGM_LEGACY_ADMIN_MENU_SLUG) {
+        wp_safe_redirect(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG));
+        exit;
+    }
+});
 
 // Register CPTs - hide default menus
 function hgm_register_cpts() {
@@ -90,7 +103,7 @@ add_action('admin_menu', function() {
         'Instant Estimate Builder',
         'Instant Estimate Builder',
         'manage_options',
-        'hgm_quote_generator',
+        IEB_ADMIN_MENU_SLUG,
         'hgm_render_dashboard_page',
         'dashicons-clipboard',
         25
@@ -98,17 +111,17 @@ add_action('admin_menu', function() {
 
     // Dashboard submenu label for the top-level plugin page.
     add_submenu_page(
-        'hgm_quote_generator',
+        IEB_ADMIN_MENU_SLUG,
         'Dashboard',
         'Dashboard',
         'manage_options',
-        'hgm_quote_generator',
+        IEB_ADMIN_MENU_SLUG,
         'hgm_render_dashboard_page'
     );
 
     // CPT: Estimate Forms
     add_submenu_page(
-        'hgm_quote_generator',
+        IEB_ADMIN_MENU_SLUG,
         'Estimate Forms',
         'Estimate Forms',
         'manage_options',
@@ -116,7 +129,7 @@ add_action('admin_menu', function() {
     );
 
     add_submenu_page(
-        'hgm_quote_generator',
+        IEB_ADMIN_MENU_SLUG,
         'Add New Estimate Form',
         'Add New Estimate Form',
         'manage_options',
@@ -125,7 +138,7 @@ add_action('admin_menu', function() {
 
     // Email Settings (Standalone still)
     add_submenu_page(
-        'hgm_quote_generator',
+        IEB_ADMIN_MENU_SLUG,
         'Email Settings',
         'Email Settings',
         'manage_options',
@@ -135,7 +148,7 @@ add_action('admin_menu', function() {
 
     // NEW: Notifications page (will include Email + Text tabs)
     add_submenu_page(
-        'hgm_quote_generator',
+        IEB_ADMIN_MENU_SLUG,
         'Notifications',
         'Notifications',
         'manage_options',
@@ -145,7 +158,7 @@ add_action('admin_menu', function() {
 
     // View Leads
     add_submenu_page(
-        'hgm_quote_generator',
+        IEB_ADMIN_MENU_SLUG,
         'View Leads',
         'View Leads',
         'manage_options',
@@ -184,7 +197,7 @@ add_action('admin_menu', function() {
 
     // Integrations Page
     add_submenu_page(
-        'hgm_quote_generator',       // Parent slug
+        IEB_ADMIN_MENU_SLUG,       // Parent slug
         'Integrations',              // Page title
         'Integrations',              // Menu title
         'manage_options',            // Capability
@@ -194,7 +207,7 @@ add_action('admin_menu', function() {
 
     // License Key submenu (under main plugin menu)
     add_submenu_page(
-        'hgm_quote_generator', // Parent slug matches your main plugin menu
+        IEB_ADMIN_MENU_SLUG, // Parent slug matches your main plugin menu
         'License Key',
         'License',
         'manage_options',
@@ -204,7 +217,7 @@ add_action('admin_menu', function() {
     // Support Page submenu
     // Support (tutorials)
     add_submenu_page(
-        'hgm_quote_generator',   // parent: your top-level plugin menu
+        IEB_ADMIN_MENU_SLUG,   // parent: your top-level plugin menu
         'Support',               // page title
         'Support',               // menu title
         'manage_options',        // capability
@@ -218,11 +231,11 @@ add_filter('parent_file', function ($parent_file) {
 
     if (
         $current_screen->post_type === 'instant_quote_form' ||
-        $current_screen->id === 'toplevel_page_hgm-email-settings' ||
-        $current_screen->id === 'hvac-quote-generator_page_hgm-view-lead' ||
+        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-email-settings' ||
+        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-view-lead' ||
         (isset($_GET['page']) && $_GET['page'] === 'hgm-view-lead')
     ) {
-        $parent_file = 'hgm_quote_generator';
+        $parent_file = IEB_ADMIN_MENU_SLUG;
     }
 
     return $parent_file;

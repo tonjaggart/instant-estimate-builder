@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 add_action('admin_enqueue_scripts', function ($hook) {
-    if ($hook === 'toplevel_page_hgm_quote_generator') {
+    if ($hook === 'toplevel_page_' . IEB_ADMIN_MENU_SLUG) {
         wp_enqueue_style(
             'hgm-dashboard-css',
             plugin_dir_url(dirname(__FILE__)) . 'assets/dashboard.css',

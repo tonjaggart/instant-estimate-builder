@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.7 - Admin polish and public release prep
+
+- Added GPL-2.0-or-later license metadata for public distribution and future WordPress.org compatibility.
+- Polished the Estimate Forms, Leads, Lead Details, Notifications, Integrations, and Support admin pages with the Instant Estimate Builder dashboard visual system.
+- Added branded admin slugs for estimate forms, leads, integrations, notifications, and support while preserving legacy internal identifiers for existing installs.
+- Removed the visible license flow now that Instant Estimate Builder is free to use.
+- Kept legacy compatibility redirects so bookmarked old admin URLs continue to work.
+
 ## 1.0.6 - Phase 1 rebrand
 
 - Rebranded user-facing plugin identity from HVAC Quote Generator to Instant Estimate Builder.

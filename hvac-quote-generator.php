@@ -2,9 +2,11 @@
 /**
  * Plugin Name: Instant Estimate Builder
  * Description: Build customizable multi-step instant estimate forms for local service businesses with lead capture, notifications, and lead management.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Taggart Media Group
  * Author URI: https://taggartmediagroup.com
+ * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: instant-estimate-builder
  */
 
@@ -586,7 +588,7 @@ add_filter('plugins_api', function ($result, $action, $args) {
     return (object) [
         'name'           => 'Instant Estimate Builder',
         'slug'           => 'hvac-quote-generator', // Legacy slug kept so existing installs can still see update details.
-        'version'        => '1.0.6',
+        'version'        => '1.0.7',
         'author'         => '<a href="https://taggartmediagroup.com/">Taggart Media Group</a>',
         'author_profile' => 'https://taggartmediagroup.com/',
         'homepage'       => 'https://taggartmediagroup.com/',

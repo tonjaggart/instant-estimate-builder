@@ -31,3 +31,9 @@ Some internal identifiers still use the legacy `hgm` / `instant_quote_form` nami
 Taggart Media Group
 
 https://taggartmediagroup.com
+
+## License
+
+Copyright © 2026 Taggart Media Group.
+
+Instant Estimate Builder is licensed under the GPL-2.0-or-later license. See `LICENSE` for details.

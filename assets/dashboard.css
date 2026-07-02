@@ -856,14 +856,16 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    flex: 1 1 520px;
     flex-wrap: wrap;
     justify-content: flex-end;
 }
 
 .ieb-leads-search input[type="search"] {
-    min-width: 260px;
+    width: min(100%, 420px);
+    min-width: 360px;
     min-height: 44px;
-    padding: 8px 14px;
+    padding: 8px 16px;
     border: 1px solid #cbd5e1;
     border-radius: 999px;
     box-shadow: none;
@@ -990,5 +992,11 @@
 
     .ieb-leads-search {
         justify-content: flex-start;
+        width: 100%;
+    }
+
+    .ieb-leads-search input[type="search"] {
+        width: 100%;
+        min-width: 0;
     }
 }

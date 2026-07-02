@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 add_action('admin_enqueue_scripts', function ($hook) {
-    if ($hook === 'toplevel_page_' . IEB_ADMIN_MENU_SLUG) {
+    if ($hook === 'toplevel_page_' . IEB_ADMIN_MENU_SLUG || $hook === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-forms') {
         wp_enqueue_style(
             'hgm-dashboard-css',
             plugin_dir_url(dirname(__FILE__)) . 'assets/dashboard.css',
@@ -51,7 +51,7 @@ function hgm_render_dashboard_page() {
     echo '<h2>Manage Estimate Forms</h2>';
     echo '<p>Build forms for windows, roofing, HVAC, plumbing, landscaping, pest control, and other local-service offers.</p>';
     echo '<div class="hgm-link-list">';
-    echo '<a href="' . esc_url(admin_url('edit.php?post_type=instant_quote_form')) . '">Manage Estimate Forms</a>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=instant-estimate-forms')) . '">Manage Estimate Forms</a>';
     echo '<a href="' . esc_url(admin_url('post-new.php?post_type=instant_quote_form')) . '">Add New Estimate Form</a>';
     echo '<a href="' . esc_url(admin_url('admin.php?page=hgm-notifications-settings')) . '">Notification Settings</a>';
     echo '<a href="' . esc_url(admin_url('admin.php?page=hgm-email-settings')) . '">Email Settings</a>';

@@ -42,6 +42,7 @@ require_once HGM_PLUGIN_PATH . 'includes/admin-leads.php';
 require_once HGM_PLUGIN_PATH . 'includes/handle-form.php';
 require_once HGM_PLUGIN_PATH . 'includes/notifications-settings.php';
 require_once HGM_PLUGIN_PATH . 'includes/dashboard.php';
+require_once HGM_PLUGIN_PATH . 'includes/estimate-forms-list.php';
 require_once HGM_PLUGIN_PATH . 'includes/integrations.php';
 require_once HGM_PLUGIN_PATH . 'includes/license-settings.php';
 require_once HGM_PLUGIN_PATH . 'includes/support.php';
@@ -53,6 +54,11 @@ add_action('admin_init', function () {
 
     if (isset($_GET['page']) && $_GET['page'] === HGM_LEGACY_ADMIN_MENU_SLUG) {
         wp_safe_redirect(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG));
+        exit;
+    }
+
+    if (isset($_GET['post_type']) && $_GET['post_type'] === 'instant_quote_form' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
+        wp_safe_redirect(admin_url('admin.php?page=instant-estimate-forms'));
         exit;
     }
 });
@@ -119,13 +125,14 @@ add_action('admin_menu', function() {
         'hgm_render_dashboard_page'
     );
 
-    // CPT: Estimate Forms
+    // Custom Estimate Forms library page keeps the visible URL aligned with the new product name.
     add_submenu_page(
         IEB_ADMIN_MENU_SLUG,
         'Estimate Forms',
         'Estimate Forms',
         'manage_options',
-        'edit.php?post_type=instant_quote_form'
+        'instant-estimate-forms',
+        'ieb_render_estimate_forms_page'
     );
 
     add_submenu_page(
@@ -231,6 +238,7 @@ add_filter('parent_file', function ($parent_file) {
 
     if (
         $current_screen->post_type === 'instant_quote_form' ||
+        $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_instant-estimate-forms' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-email-settings' ||
         $current_screen->id === IEB_ADMIN_MENU_SLUG . '_page_hgm-view-lead' ||
         (isset($_GET['page']) && $_GET['page'] === 'hgm-view-lead')
@@ -242,6 +250,10 @@ add_filter('parent_file', function ($parent_file) {
 });
 
 add_filter('submenu_file', function ($submenu_file) {
+    if (isset($_GET['page']) && $_GET['page'] === 'instant-estimate-forms') {
+        return 'instant-estimate-forms';
+    }
+
     if (isset($_GET['page']) && $_GET['page'] === 'hgm_view_lead') {
         return 'edit.php?post_type=hgm_lead'; // Match existing submenu item
     }

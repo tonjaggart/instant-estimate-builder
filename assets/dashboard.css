@@ -229,3 +229,135 @@
         text-align: center;
     }
 }
+
+.ieb-forms-page {
+    padding-bottom: 56px;
+}
+
+.ieb-forms-hero {
+    margin-bottom: 22px;
+}
+
+.ieb-forms-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    margin: 22px 0;
+}
+
+.ieb-forms-summary-card {
+    min-height: 0;
+    padding: 22px 24px;
+}
+
+.ieb-forms-summary-card span {
+    display: block;
+    margin-bottom: 8px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.ieb-forms-summary-card strong {
+    color: #0f172a;
+    font-size: 36px;
+    line-height: 1;
+}
+
+.ieb-forms-table-card {
+    min-height: 0;
+}
+
+.ieb-forms-table {
+    overflow: hidden;
+    margin-top: 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: none;
+}
+
+.ieb-forms-table thead th {
+    padding: 14px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ieb-forms-table tbody td {
+    padding: 16px;
+    vertical-align: middle;
+}
+
+.ieb-forms-table tbody td a {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+
+.ieb-forms-table tbody td a:hover {
+    color: #1e40af;
+}
+
+.ieb-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1e3a8a;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.ieb-forms-actions-column {
+    width: 270px;
+}
+
+.ieb-forms-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ieb-table-button.button {
+    min-height: 34px;
+    border-color: #e2e8f0;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #1d4ed8;
+    font-weight: 700;
+}
+
+.ieb-table-button.button:hover,
+.ieb-table-button.button:focus {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1e40af;
+}
+
+.ieb-table-button-danger.button {
+    color: #b91c1c;
+}
+
+.ieb-table-button-danger.button:hover,
+.ieb-table-button-danger.button:focus {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+@media (max-width: 782px) {
+    .ieb-forms-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ieb-forms-table {
+        display: block;
+        overflow-x: auto;
+    }
+}

@@ -92,7 +92,7 @@ add_action('admin_menu', function() {
         'manage_options',
         'hgm_quote_generator',
         'hgm_render_dashboard_page',
-        plugins_url('assets/plugin-icon.png', __FILE__),
+        'dashicons-clipboard',
         25
     );
 

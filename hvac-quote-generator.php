@@ -85,6 +85,11 @@ add_action('admin_init', function () {
         exit;
     }
 
+    if (isset($_GET['page']) && $_GET['page'] === 'hgm-license-settings') {
+        wp_safe_redirect(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG));
+        exit;
+    }
+
     if (isset($_GET['post_type']) && $_GET['post_type'] === 'hgm_lead' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
         wp_safe_redirect(admin_url('admin.php?page=instant-estimate-leads'));
         exit;
@@ -247,15 +252,6 @@ add_action('admin_menu', function() {
         'hgm_render_integrations_page' // Callback function
     );
 
-    // License Key submenu (under main plugin menu)
-    add_submenu_page(
-        IEB_ADMIN_MENU_SLUG, // Parent slug matches your main plugin menu
-        'License Key',
-        'License',
-        'manage_options',
-        'hgm-license-settings',
-        'hgm_render_license_settings_page'
-    );
     // Support Page submenu
     // Support (tutorials)
     add_submenu_page(

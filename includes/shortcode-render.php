@@ -30,28 +30,7 @@ function render_instant_quote_form_shortcode($atts) {
             'nonce'    => wp_create_nonce('hgm_nonce'),
         ]);
     }
-    $status = hgm_get_license_status_secure();
-
-    // 1) If this license is already claimed by another root domain:
-    if ($status === 'domain_taken') {
-        if (current_user_can('manage_options')) {
-            return '<div class="hgm-license-error" style="border:1px solid red;padding:15px;background:#fff3f3;color:#d63638;">
-                <strong>License Domain Mismatch:</strong> This license is already claimed by another domain, so the form cannot render on this site.
-                Manage it under <a href="' . esc_url(admin_url('admin.php?page=hgm-license-settings')) . '" style="color:#d63638;font-weight:bold;text-decoration:underline;">License</a>.
-            </div>';
-        }
-        return ''; // visitors see nothing
-    }
-
-    // 2) For any status that is not active (inactive/invalid/expired), keep your current public message:
-    if ($status !== 'active') {
-        return '<div class="hgm-license-error" style="border:1px solid red;padding:15px;background:#fff3f3;color:#d63638;">
-            <strong>License Required:</strong> The HVAC Instant Estimate Generator is not activated on this site.
-            Please enter your license key in the WordPress admin under <a href="' . esc_url(admin_url('admin.php?page=hgm-license-settings')) . '" style="color:#d63638;font-weight:bold;text-decoration:underline;">License</a> to enable this form.
-        </div>';
-    }
-
-    // 3) Normal rendering
+    // Normal rendering. The plugin is free, so legacy license checks do not block forms.
     $atts = shortcode_atts(['id' => 0], $atts, 'instant_quote_form');
     $form_id   = $atts['id'] ? absint($atts['id']) : get_the_ID();
     $form_data = get_post_meta($form_id, '_hgm_form_data', true);

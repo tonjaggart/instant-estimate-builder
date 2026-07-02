@@ -53,12 +53,7 @@ function hgm_render_support_page() {
             'video'   => 'https://www.loom.com/share/6e2919bed25e4d0ba530a18188b21511?sid=2765a02f-732d-46a8-b2e2-ccaced386800',
             'content' => '<p>Upload the ZIP in <strong>Plugins → Add New → Upload</strong>, then click <em>Activate</em>.</p>',
         ],
-        [
-            'id'      => 'enter-license',
-            'title'   => 'How to activate and add the license to the plugin',
-            'video'   => 'https://www.loom.com/share/53fe28b600f5413883fa76aa21e354b6?sid=38675128-5562-45c1-ada8-812217e48620',
-            'content' => '<p>Go to <strong>Instant Estimate Builder → License</strong>, enter your email, license key, and public key, then click <em>Activate License</em>.</p>',
-        ],
+
         [
             'id'      => 'create-first-form',
             'title'   => 'How to create your first form',

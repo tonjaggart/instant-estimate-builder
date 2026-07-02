@@ -267,6 +267,17 @@ add_action('admin_menu', function() {
         'instant-estimate-support', // menu slug
         'hgm_render_support_page'// callback (defined in includes/support.php)
     );
+
+    // Hidden legacy support page keeps the old bookmarked URL registered long enough to redirect.
+    // Without this, WordPress can show "Sorry, you are not allowed to access this page" before admin_init redirects.
+    add_submenu_page(
+        null,
+        'Legacy Support',
+        'Legacy Support',
+        'edit_posts',
+        'hgm-support',
+        '__return_null'
+    );
 });
 function ieb_is_plugin_admin_page($screen = null) {
     $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';

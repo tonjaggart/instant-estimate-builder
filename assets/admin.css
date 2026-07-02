@@ -501,9 +501,15 @@
     margin-top: 0;
 }
 
-.ieb-form-settings-card > h2 {
-    padding-left: 0 !important;
-    font-size: 28px;
+.ieb-form-settings-card > .hgm-card-label {
+    display: none;
+}
+
+.post-type-instant_quote_form .ieb-form-settings-card > h2 {
+    margin: 0 0 18px !important;
+    padding: 0 !important;
+    font-size: 28px !important;
+    line-height: 1.2 !important;
 }
 
 .post-type-instant_quote_form .wp-picker-container .wp-color-result.button,

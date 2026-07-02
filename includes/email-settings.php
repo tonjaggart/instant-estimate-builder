@@ -43,17 +43,17 @@ function hgm_render_email_settings_page() {
         echo '<div class="hgm-card-label">Preview</div>';
         echo '<h2>Preview and Send a Test Email</h2>';
         echo '<div class="ieb-email-preview-legacy">';
-        echo '<div style="text-align: center; margin: 40px 0;">';
+        echo '<div class="ieb-test-email-panel">';
         echo '<h2>Send Test Email</h2>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display: inline-flex; align-items: center; gap: 10px;">';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="ieb-test-email-form">';
         echo '<input type="hidden" name="action" value="hgm_send_test_email">';
         wp_nonce_field('hgm_send_test_email_action', 'hgm_send_test_email_nonce');
-        echo '<input type="email" name="hgm_test_email" placeholder="Enter your email" required class="regular-text">';
-        echo '<button type="submit" class="button button-primary" name="hgm_send_test_email">Send Test Email</button>';
+        echo '<input type="email" name="hgm_test_email" placeholder="Enter your email" required class="regular-text ieb-test-email-input">';
+        echo '<button type="submit" class="button button-primary hgm-button-primary ieb-test-email-button" name="hgm_send_test_email">Send Test Email</button>';
         echo '</form>';
         echo '</div>';
-        echo '<hr>';
-        echo '<div style="margin-top:40px;">';
+        echo '<hr class="ieb-email-preview-divider">';
+        echo '<div class="ieb-email-preview-frame">';
         try {
             echo hgm_get_customer_email_html();
         } catch (Throwable $e) {

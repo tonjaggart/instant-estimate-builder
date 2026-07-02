@@ -127,3 +127,17 @@ function hgm_render_notifications_settings_page() {
 add_action('admin_init', function () {
     register_setting('hgm_notification_settings', 'hgm_notification_settings');
 });
+
+add_filter('option_page_capability_hgm_notification_settings', function () {
+    return 'edit_posts';
+});
+
+add_filter('option_page_capability_hgm_email_settings', function ($capability) {
+    $referer = wp_get_referer();
+
+    if ($referer && strpos($referer, 'page=instant-estimate-notifications') !== false) {
+        return 'edit_posts';
+    }
+
+    return $capability;
+});

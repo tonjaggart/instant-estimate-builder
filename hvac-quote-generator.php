@@ -176,7 +176,7 @@ add_action('admin_menu', function() {
         IEB_ADMIN_MENU_SLUG,
         'Notifications',
         'Notifications',
-        'manage_options',
+        'edit_posts',
         'instant-estimate-notifications',
         'hgm_render_notifications_settings_page' // This is defined in notifications-settings.php
     );

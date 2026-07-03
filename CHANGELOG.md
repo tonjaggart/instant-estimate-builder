@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.12 - Release packaging
+
+- Added release-asset ZIP support for cleaner WordPress plugin updates.
+
 ## 1.0.11 - Update metadata and icon
 
 - Added branded plugin icon assets for WordPress update/details screens.

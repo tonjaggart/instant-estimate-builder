@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.11 - Update metadata and icon
+
+- Added branded plugin icon assets for WordPress update/details screens.
+- Added update metadata for WordPress/PHP compatibility.
+- Corrected the 2x plugin icon asset path.
+
 ## 1.0.10 - Security hardening
 
 - Restricted sensitive lead, export, notification, and integration screens to admin-level capability.

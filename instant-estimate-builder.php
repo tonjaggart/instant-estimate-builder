@@ -2,7 +2,10 @@
 /**
  * Plugin Name: Instant Estimate Builder
  * Description: Build customizable multi-step instant estimate forms for local service businesses with lead capture, notifications, and lead management.
- * Version: 1.0.10
+ * Version: 1.0.11
+ * Requires at least: 5.4
+ * Tested up to: 7.0
+ * Requires PHP: 7.4
  * Author: Taggart Media Group
  * Author URI: https://taggartmediagroup.com
  * License: GPL-2.0-or-later
@@ -22,6 +25,25 @@ $myUpdateChecker = PucFactory::buildUpdateChecker(
     __FILE__,
     'instant-estimate-builder'
 );
+
+$myUpdateChecker->addFilter('request_update_result', function ($update) {
+    if (empty($update)) {
+        return $update;
+    }
+
+    $plugin_url = plugin_dir_url(__FILE__);
+
+    $update->tested = '7.0';
+    $update->requires = '5.4';
+    $update->requires_php = '7.4';
+    $update->icons = [
+        '1x'      => $plugin_url . 'assets/plugin-icon.png',
+        '2x'      => $plugin_url . 'assets/plugin-icon@2x.png',
+        'default' => $plugin_url . 'assets/plugin-icon@2x.png',
+    ];
+
+    return $update;
+});
 
 // End plugin update checker
 
@@ -589,17 +611,16 @@ add_filter('plugins_api', function ($result, $action, $args) {
         return $result;
     }
 
-    // NEW: use the site's current WP version to silence the warning
-    $tested_wp = $GLOBALS['wp_version']; // or get_bloginfo('version')
+    $tested_wp = '7.0';
 
     // Optional: point to your icon(s). If you only have one, reuse it for 1x/2x.
     $icon_1x = HGM_PLUGIN_URL . 'assets/plugin-icon.png';
-    $icon_2x = HGM_PLUGIN_URL . 'assets/plugin-icon@x.png';
+    $icon_2x = HGM_PLUGIN_URL . 'assets/plugin-icon@2x.png';
 
     return (object) [
         'name'           => 'Instant Estimate Builder',
         'slug'           => 'instant-estimate-builder',
-        'version'        => '1.0.10',
+        'version'        => '1.0.11',
         'author'         => '<a href="https://taggartmediagroup.com/">Taggart Media Group</a>',
         'author_profile' => 'https://taggartmediagroup.com/',
         'homepage'       => 'https://taggartmediagroup.com/',
@@ -626,6 +647,8 @@ add_filter('plugins_api', function ($result, $action, $args) {
                 </ul>
             ',
             'changelog' => '
+                <h4>1.0.11</h4>
+                <ul><li>Updated plugin update metadata and branded icon assets.</li></ul>
                 <h4>1.0.10</h4>
                 <ul><li>Security hardening for admin capabilities, exports, AJAX actions, settings sanitization, and preview access.</li></ul>
             ',

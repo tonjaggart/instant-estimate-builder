@@ -20,17 +20,11 @@ Prepared in branch:
 - Production WooCommerce setup product exists and checkout is wired from the landing page.
 - GitHub release updater removed from the plugin entrypoint so WordPress.org-hosted installs use WordPress.org updates.
 - WordPress.org banner and icon assets exist in `assets/`.
+- WordPress.org screenshots exist in `assets/screenshot-1.png` through `assets/screenshot-5.png`.
 
 ## Still Needed Before WordPress.org Submission
 
-1. Add plugin screenshots:
-   - Dashboard
-   - Form builder
-   - Frontend multi-step form
-   - Lead inbox
-   - Notification settings
-
-2. Run a final security/compliance review:
+1. Run a final security/compliance review:
    - Nonces for state-changing actions
    - Capability checks
    - Sanitization before save
@@ -39,9 +33,9 @@ Prepared in branch:
    - No private client references
    - No credentials/secrets
 
-3. Submit the plugin through WordPress.org developer portal.
+2. Submit the plugin through WordPress.org developer portal.
 
-4. After approval, push to WordPress.org SVN:
+3. After approval, push to WordPress.org SVN:
    - `/trunk`
    - `/tags/1.0.13`
    - `/assets`

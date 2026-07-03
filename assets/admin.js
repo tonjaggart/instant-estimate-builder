@@ -246,6 +246,7 @@ jQuery(document).ready(function($) {
                                 const formData = new FormData();
                                 formData.append('file', blob, 'cropped.jpg');
                                 formData.append('action', 'hgm_upload_cropped_image');
+                                formData.append('nonce', window.hgmAdminSecurity?.uploadNonce || '');
 
                                 $.ajax({
                                     url: ajaxurl,

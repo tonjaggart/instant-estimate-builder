@@ -124,19 +124,49 @@ function hgm_render_notifications_settings_page() {
     echo '</div>';
 }
 
+function ieb_sanitize_notification_settings($input) {
+    $input = is_array($input) ? $input : [];
+    $allowed_carriers = ['verizon', 'att', 'tmobile', 'sprint', 'uscellular'];
+    $recipients = [];
+
+    if (!empty($input['sms_recipients']) && is_array($input['sms_recipients'])) {
+        foreach ($input['sms_recipients'] as $recipient) {
+            if (count($recipients) >= 5) {
+                break;
+            }
+
+            $phone = preg_replace('/\D+/', '', $recipient['phone'] ?? '');
+            $carrier = sanitize_key($recipient['carrier'] ?? '');
+
+            if (strlen($phone) === 10 && in_array($carrier, $allowed_carriers, true)) {
+                $recipients[] = [
+                    'phone' => $phone,
+                    'carrier' => $carrier,
+                ];
+            }
+        }
+    }
+
+    return ['sms_recipients' => $recipients];
+}
+
 add_action('admin_init', function () {
-    register_setting('hgm_notification_settings', 'hgm_notification_settings');
+    register_setting('hgm_notification_settings', 'hgm_notification_settings', [
+        'type' => 'array',
+        'sanitize_callback' => 'ieb_sanitize_notification_settings',
+        'default' => [],
+    ]);
 });
 
 add_filter('option_page_capability_hgm_notification_settings', function () {
-    return 'edit_posts';
+    return defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options';
 });
 
 add_filter('option_page_capability_hgm_email_settings', function ($capability) {
     $referer = wp_get_referer();
 
     if ($referer && strpos($referer, 'page=instant-estimate-notifications') !== false) {
-        return 'edit_posts';
+        return defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options';
     }
 
     return $capability;

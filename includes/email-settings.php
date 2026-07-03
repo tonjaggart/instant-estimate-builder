@@ -207,6 +207,8 @@ add_action('admin_post_hgm_send_test_email', function () {
         wp_die('Unauthorized');
     }
 
+    check_admin_referer('hgm_send_test_email_action', 'hgm_send_test_email_nonce');
+
     if (!isset($_POST['hgm_test_email'])) {
         wp_die('Missing test email address');
     }
@@ -233,9 +235,9 @@ add_action('admin_post_hgm_send_test_email', function () {
 
     $message = hgm_get_customer_email_html(); // this triggers preview mode
 
-    // Add this:
-    error_log('🧪 Rendered message length: ' . strlen($message));
-    error_log('🧪 Raw message preview: ' . substr($message, 0, 200));
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('Rendered test email length: ' . strlen($message));
+    }
 
     $headers = [
         'Content-Type: text/html; charset=UTF-8',
@@ -271,7 +273,51 @@ require_once plugin_dir_path(__FILE__) . 'email-template-customer.php';
 
 function hgm_merge_email_settings($new) {
     $existing = get_option('hgm_email_settings', []);
-    return array_merge($existing, $new);
+    $existing = is_array($existing) ? $existing : [];
+    $new = is_array($new) ? $new : [];
+
+    $sanitized = [];
+
+    if (array_key_exists('logo_url', $new)) {
+        $sanitized['logo_url'] = esc_url_raw($new['logo_url']);
+    }
+    if (array_key_exists('phone_text', $new)) {
+        $sanitized['phone_text'] = sanitize_text_field($new['phone_text']);
+    }
+    if (array_key_exists('phone_number', $new)) {
+        $sanitized['phone_number'] = sanitize_text_field($new['phone_number']);
+    }
+    if (array_key_exists('button_text', $new)) {
+        $sanitized['button_text'] = sanitize_text_field($new['button_text']);
+    }
+    if (array_key_exists('button_link', $new)) {
+        $button_link = trim((string) $new['button_link']);
+        $sanitized['button_link'] = strpos($button_link, 'tel:') === 0 ? sanitize_text_field($button_link) : esc_url_raw($button_link);
+    }
+    foreach (['body_copy', 'disclaimer', 'text_below_btn'] as $html_key) {
+        if (array_key_exists($html_key, $new)) {
+            $sanitized[$html_key] = wp_kses_post($new[$html_key]);
+        }
+    }
+    if (array_key_exists('company_name', $new)) {
+        $sanitized['company_name'] = sanitize_text_field($new['company_name']);
+    }
+    if (array_key_exists('reply_to', $new)) {
+        $sanitized['reply_to'] = sanitize_email($new['reply_to']);
+    }
+    if (array_key_exists('reply_to_email', $new)) {
+        $sanitized['reply_to_email'] = sanitize_email($new['reply_to_email']);
+    }
+    if (array_key_exists('primary_color', $new)) {
+        $sanitized['primary_color'] = sanitize_hex_color($new['primary_color']) ?: '#013c55';
+    }
+    if (array_key_exists('sales_team_emails', $new)) {
+        $emails = preg_split('/[,\s]+/', (string) $new['sales_team_emails']);
+        $emails = array_filter(array_map('sanitize_email', $emails), 'is_email');
+        $sanitized['sales_team_emails'] = implode(',', array_unique($emails));
+    }
+
+    return array_merge($existing, $sanitized);
 }
 
 function hgm_render_customer_email_template($args = []) {

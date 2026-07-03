@@ -3,12 +3,6 @@
 if (!defined('ABSPATH')) {
     exit;
 }
-add_action('updated_postmeta', function($meta_id, $post_id, $meta_key, $meta_value) {
-    if (in_array($meta_key, ['_hgm_estimate_low', '_hgm_estimate_high'])) {
-        error_log("META UPDATED: post_id=$post_id, meta_key=$meta_key, meta_value=" . print_r($meta_value, true));
-    }
-}, 10, 4);
-
 add_action('wp_ajax_hgm_submit_quote_form', 'hgm_submit_quote_form');
 add_action('wp_ajax_nopriv_hgm_submit_quote_form', 'hgm_submit_quote_form');
 add_action('wp_ajax_hgm_get_quote_nonce', 'hgm_get_quote_nonce');
@@ -88,7 +82,7 @@ function hgm_send_to_klaviyo($lead_id, $form_id, $first_name, $email, $phone, $f
     ];
 
     if ($hgm_debug) {
-        error_log('Klaviyo payload: ' . print_r($payload, true));
+        error_log('Klaviyo payload prepared for lead sync.');
     }
 
     // ======================
@@ -148,7 +142,7 @@ function hgm_send_to_klaviyo($lead_id, $form_id, $first_name, $email, $phone, $f
 
     // Stop if no profile ID was found
     if (empty($profile_id)) {
-        error_log('Klaviyo profile failed. Response: ' . print_r($profile_body, true));
+        error_log('Klaviyo profile failed. Status: ' . $profile_status);
         return;
     }
 
@@ -183,17 +177,79 @@ function hgm_send_to_klaviyo($lead_id, $form_id, $first_name, $email, $phone, $f
 
     if ($hgm_debug) {
         error_log('Klaviyo list response status: ' . $list_status);
-        error_log('Klaviyo list response body: ' . $list_body);
     }
 
     if ($list_status >= 200 && $list_status < 300) {
         error_log('Klaviyo SUCCESS: Lead added to list. Profile ID: ' . $profile_id);
     } else {
-        error_log('Klaviyo list add failed. Status: ' . $list_status . ' Body: ' . $list_body);
+        error_log('Klaviyo list add failed. Status: ' . $list_status);
     }
 }
 
 require_once HGM_PLUGIN_PATH . 'includes/email-template-customer.php';
+
+function hgm_calculate_server_side_estimate($form_id, $submitted_form_data) {
+    $submitted_form_data = is_array($submitted_form_data) ? $submitted_form_data : [];
+    $safe_form_data = [];
+    $low_total = 0;
+    $high_total = 0;
+
+    $form_id = absint($form_id);
+    $saved_steps = $form_id ? get_post_meta($form_id, '_hgm_form_data', true) : [];
+
+    if (is_string($saved_steps)) {
+        $saved_steps = json_decode($saved_steps, true);
+    }
+
+    if (!is_array($saved_steps)) {
+        $saved_steps = [];
+    }
+
+    foreach ($submitted_form_data as $step_key => $submitted_step) {
+        $step_key = sanitize_key($step_key);
+        $submitted_label = sanitize_text_field($submitted_step['label'] ?? '');
+        $matched = false;
+
+        if (preg_match('/^step_(\d+)$/', $step_key, $matches)) {
+            $step_index = max(0, absint($matches[1]) - 1);
+            $saved_step = $saved_steps[$step_index] ?? [];
+            $options = is_array($saved_step['options'] ?? null) ? $saved_step['options'] : [];
+
+            foreach ($options as $option) {
+                $option_label = sanitize_text_field($option['label'] ?? '');
+                if ($submitted_label !== '' && hash_equals($option_label, $submitted_label)) {
+                    $low = isset($option['low']) && is_numeric($option['low']) ? floatval($option['low']) : 0;
+                    $high = isset($option['high']) && is_numeric($option['high']) ? floatval($option['high']) : 0;
+
+                    $safe_form_data[$step_key] = [
+                        'label' => $option_label,
+                        'min' => $low,
+                        'max' => $high,
+                    ];
+                    $low_total += $low;
+                    $high_total += $high;
+                    $matched = true;
+                    break;
+                }
+            }
+        }
+
+        if (!$matched && $submitted_label !== '') {
+            // Preserve the answer label for lead review, but do not trust client-supplied pricing.
+            $safe_form_data[$step_key] = [
+                'label' => $submitted_label,
+                'min' => 0,
+                'max' => 0,
+            ];
+        }
+    }
+
+    return [
+        'form_data' => $safe_form_data,
+        'low_total' => $low_total,
+        'high_total' => $high_total,
+    ];
+}
 
 function hgm_submit_quote_form() {
 
@@ -208,19 +264,14 @@ function hgm_submit_quote_form() {
     $email      = sanitize_email($_POST['email'] ?? '');
     $phone      = sanitize_text_field($_POST['phone'] ?? '');
     $zip_code   = sanitize_text_field($_POST['zip_code'] ?? '');
+    $form_id    = isset($_POST['form_id']) ? absint($_POST['form_id']) : 0;
 
-    $form_data_json = stripslashes($_POST['_hgm_form_data'] ?? '');
+    $form_data_json = wp_unslash($_POST['_hgm_form_data'] ?? '');
     $form_data = json_decode($form_data_json, true);
-
-    $low_total = 0;
-    $high_total = 0;
-
-    if (is_array($form_data)) {
-        foreach ($form_data as $step) {
-            $low_total += isset($step['min']) && is_numeric($step['min']) ? floatval($step['min']) : 0;
-            $high_total += isset($step['max']) && is_numeric($step['max']) ? floatval($step['max']) : 0;
-        }
-    }
+    $calculated_estimate = hgm_calculate_server_side_estimate($form_id, $form_data);
+    $form_data = $calculated_estimate['form_data'];
+    $low_total = $calculated_estimate['low_total'];
+    $high_total = $calculated_estimate['high_total'];
 
     $errors = [];
 
@@ -241,14 +292,11 @@ function hgm_submit_quote_form() {
         'post_status' => 'publish',
     ]);
 
-    $form_id = isset($_POST['form_id']) ? intval($_POST['form_id']) : 0;
     if ($form_id) {
         update_post_meta($lead_id, '_hgm_form_id', $form_id);
     }
 
-    if (isset($_POST['_hgm_form_data'])) {
-        update_post_meta($lead_id, '_hgm_form_data', wp_unslash($_POST['_hgm_form_data']));
-    }
+    update_post_meta($lead_id, '_hgm_form_data', wp_json_encode($form_data));
 
     if (is_wp_error($lead_id)) {
         wp_send_json_error(['message' => 'Failed to save lead.']);
@@ -298,7 +346,6 @@ function hgm_submit_quote_form() {
     // Email recipient and subject for customer
     $to = $email;
     // Get form-specific subject
-    $form_id = isset($_POST['form_id']) ? intval($_POST['form_id']) : 0;
     $form_subject = $form_id ? trim(get_post_meta($form_id, 'hgm_email_subject', true)) : '';
 
     // Default subject (WITHOUT name or dash)
@@ -395,9 +442,9 @@ function hgm_submit_quote_form() {
         foreach ($sales_emails_array as $sales_email) {
             $result = wp_mail($sales_email, $subject_sales, $sales_email_message, $headers);
             if (!$result) {
-                error_log("HGM SALES EMAIL FAILED: $sales_email");
+                error_log('HGM SALES EMAIL FAILED for lead ID ' . $lead_id);
             } else {
-                error_log("HGM SALES EMAIL SENT: $sales_email");
+                error_log('HGM SALES EMAIL SENT for lead ID ' . $lead_id);
             }
         }
     }
@@ -446,7 +493,7 @@ function hgm_submit_quote_form() {
                 $headers = ['Content-Type: text/plain; charset=UTF-8'];
 
                 $sent = wp_mail($to_sms, $sms_subject, $sms_body, $headers);
-                error_log($sent ? "📬 SMS SENT to $to_sms" : "❌ SMS FAILED to $to_sms");
+                error_log($sent ? 'SMS notification sent for lead ID ' . $lead_id : 'SMS notification failed for lead ID ' . $lead_id);
             }
         }
     }

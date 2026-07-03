@@ -46,7 +46,7 @@ add_action('manage_posts_extra_tablenav', function($which) {
     global $typenow;
 
     if ($typenow === 'hgm_lead' && $which === 'top') {
-        $export_url = admin_url('admin-post.php?action=hgm_export_leads_csv');
+        $export_url = wp_nonce_url(admin_url('admin-post.php?action=hgm_export_leads_csv'), 'hgm_export_leads_csv');
         echo '<div class="alignleft actions">';
         echo '<a href="' . esc_url($export_url) . '" class="button button-primary">Export Leads CSV</a>';
         echo '</div>';
@@ -55,10 +55,17 @@ add_action('manage_posts_extra_tablenav', function($which) {
 
 add_action('admin_post_hgm_export_leads_csv', 'hgm_export_leads_csv_callback');
 
+function hgm_sanitize_csv_cell($value) {
+    $value = (string) $value;
+    return preg_match('/^[=+\-@]/', ltrim($value)) ? "'" . $value : $value;
+}
+
 function hgm_export_leads_csv_callback() {
-    if (!current_user_can('edit_posts')) {
+    if (!current_user_can(defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options')) {
         wp_die('Unauthorized');
     }
+
+    check_admin_referer('hgm_export_leads_csv');
 
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="instant-estimate-leads.csv"');
@@ -87,7 +94,7 @@ function hgm_export_leads_csv_callback() {
         $high   = get_post_meta($id, '_hgm_estimate_high', true);
         $date   = get_the_date('Y-m-d H:i:s', $id);
 
-        fputcsv($output, [$id, $name, $email, $phone, $zip, $low, $high, $date]);
+        fputcsv($output, array_map('hgm_sanitize_csv_cell', [$id, $name, $email, $phone, $zip, $low, $high, $date]));
     }
 
     fclose($output);
@@ -182,7 +189,8 @@ function ieb_render_leads_page() {
     echo '<h1>Instant Estimate Leads</h1>';
     echo '<p class="hgm-dashboard-subtitle">Review new instant estimate submissions, contact details, ZIP codes, and estimate ranges in one place.</p>';
     echo '<div class="hgm-dashboard-actions">';
-    echo '<a href="' . esc_url(admin_url('admin-post.php?action=hgm_export_leads_csv')) . '" class="button button-primary hgm-button-primary">Export Leads CSV</a>';
+    $export_url = wp_nonce_url(admin_url('admin-post.php?action=hgm_export_leads_csv'), 'hgm_export_leads_csv');
+    echo '<a href="' . esc_url($export_url) . '" class="button button-primary hgm-button-primary">Export Leads CSV</a>';
     echo '<a href="' . esc_url(admin_url('admin.php?page=' . IEB_ADMIN_MENU_SLUG)) . '" class="button hgm-button-secondary">Back To Dashboard</a>';
     echo '</div>';
     echo '</section>';

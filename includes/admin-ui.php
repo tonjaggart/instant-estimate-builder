@@ -160,6 +160,9 @@ function hgm_enqueue_admin_assets($hook)
         filemtime(plugin_dir_path(dirname(__FILE__)) . "assets/admin.js"),
         true
     );
+    wp_localize_script("hgm-admin-js", "hgmAdminSecurity", [
+        "uploadNonce" => wp_create_nonce("hgm_upload_cropped_image"),
+    ]);
     wp_enqueue_style(
         "hgm-dashboard-css",
         plugin_dir_url(dirname(__FILE__)) . "assets/dashboard.css",
@@ -178,11 +181,17 @@ add_action("admin_enqueue_scripts", "hgm_enqueue_admin_assets");
 add_action("wp_ajax_hgm_upload_cropped_image", "hgm_upload_cropped_image");
 function hgm_upload_cropped_image()
 {
+    check_ajax_referer("hgm_upload_cropped_image", "nonce");
+
     if (!current_user_can("upload_files") || !isset($_FILES["file"]) || !function_exists("wp_handle_sideload")) {
         wp_send_json_error(["message" => "Unauthorized or missing file."]);
     }
 
     $file = $_FILES["file"];
+    $file_type = wp_check_filetype_and_ext($file["tmp_name"], $file["name"]);
+    if (empty($file_type["type"]) || strpos($file_type["type"], "image/") !== 0) {
+        wp_send_json_error(["message" => "Please upload a valid image file."]);
+    }
 
     // Give it a unique name
     $file["name"] = wp_unique_filename(wp_upload_dir()["path"], $file["name"]);
@@ -366,7 +375,7 @@ add_action("admin_menu", function () {
         null, // Hidden from the menu
         "Instant Estimate Lead Details", // Page title
         "Instant Estimate Lead Details", // Menu title (unused here)
-        "edit_posts", // Capability (same as for your CPT)
+        defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options', // Sensitive lead details
         "instant-estimate-lead", // Page slug
         "hgm_render_view_lead_screen" // Callback function
     );
@@ -374,9 +383,7 @@ add_action("admin_menu", function () {
 
 function hgm_render_view_lead_screen()
 {
-    error_log("Plugin page: " . ($_GET["page"] ?? "none"));
-
-    if (!current_user_can("edit_posts")) {
+    if (!current_user_can(defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options')) {
         wp_die(__("You are not allowed to access this page."));
     }
 
@@ -544,6 +551,7 @@ function initAutosaveNotes() {
 let timeout;
 const $status = $('#hgm-save-status');
 const leadId = <?php echo intval($lead_id); ?>;
+const notesNonce = '<?php echo esc_js(wp_create_nonce("hgm_save_lead_notes")); ?>';
 
 function saveNotes() {
 let notes = '';
@@ -561,7 +569,8 @@ url: window.ajaxurl,
 data: {
 action: 'hgm_save_lead_notes',
 lead_id: leadId,
-notes: notes
+notes: notes,
+nonce: notesNonce
 },
 success: function(res) {
 console.log('AJAX success:', res);
@@ -621,7 +630,9 @@ initAutosaveNotes();
 }
 
 add_action("wp_ajax_hgm_save_lead_notes", function () {
-    if (!current_user_can("edit_posts")) {
+    check_ajax_referer("hgm_save_lead_notes", "nonce");
+
+    if (!current_user_can(defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options')) {
         wp_send_json_error(["message" => "Unauthorized"]);
     }
 

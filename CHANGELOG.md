@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.10 - Security hardening
+
+- Restricted sensitive lead, export, notification, and integration screens to admin-level capability.
+- Masked saved Klaviyo private API keys and sanitized integration settings.
+- Added nonce checks for lead CSV export, cropped-image upload, and lead-notes autosave.
+- Added CSV formula-injection protection for lead exports.
+- Added field-specific sanitization for notification and email settings.
+- Reduced PII in debug logs.
+- Restricted form preview URLs to users who can edit the form.
+- Recalculate estimate totals server-side from the saved form definition instead of trusting client-submitted price values.
+
 ## 1.0.9 - Main plugin file rename
 
 - Renamed the main plugin file from `hvac-quote-generator.php` to `instant-estimate-builder.php` for a fully clean public plugin identity.

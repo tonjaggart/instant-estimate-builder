@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Instant Estimate Builder
  * Description: Build customizable multi-step instant estimate forms for local service businesses with lead capture, notifications, and lead management.
- * Version: 1.0.9
+ * Version: 1.0.10
  * Author: Taggart Media Group
  * Author URI: https://taggartmediagroup.com
  * License: GPL-2.0-or-later
@@ -34,6 +34,7 @@ define('IEB_PLUGIN_PATH', HGM_PLUGIN_PATH);
 define('IEB_PLUGIN_URL', HGM_PLUGIN_URL);
 define('IEB_ADMIN_MENU_SLUG', 'instant-estimate-builder');
 define('HGM_LEGACY_ADMIN_MENU_SLUG', 'hgm_quote_generator');
+define('IEB_SENSITIVE_CAPABILITY', 'manage_options');
 
 
 // Load core includes
@@ -100,6 +101,13 @@ add_action('admin_init', function () {
     if (isset($_GET['post_type']) && $_GET['post_type'] === 'hgm_lead' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
         wp_safe_redirect(admin_url('admin.php?page=instant-estimate-leads'));
         exit;
+    }
+
+    if (basename($_SERVER['PHP_SELF']) === 'post.php' && isset($_GET['post'])) {
+        $post_id = absint($_GET['post']);
+        if ($post_id && get_post_type($post_id) === 'hgm_lead' && !current_user_can(IEB_SENSITIVE_CAPABILITY)) {
+            wp_die(__('You are not allowed to access this lead.'));
+        }
     }
 
     if (isset($_GET['post_type']) && $_GET['post_type'] === 'instant_quote_form' && basename($_SERVER['PHP_SELF']) === 'edit.php') {
@@ -204,7 +212,7 @@ add_action('admin_menu', function() {
         IEB_ADMIN_MENU_SLUG,
         'Notifications',
         'Notifications',
-        'edit_posts',
+        IEB_SENSITIVE_CAPABILITY,
         'instant-estimate-notifications',
         'hgm_render_notifications_settings_page' // This is defined in notifications-settings.php
     );
@@ -214,7 +222,7 @@ add_action('admin_menu', function() {
         IEB_ADMIN_MENU_SLUG,
         'Instant Estimate Leads',
         'View Leads',
-        'edit_posts',
+        IEB_SENSITIVE_CAPABILITY,
         'instant-estimate-leads',
         'ieb_render_leads_page'
     );
@@ -224,7 +232,7 @@ add_action('admin_menu', function() {
         null,
         'Instant Estimate Lead Details',
         'Instant Estimate Lead Details',
-        'edit_posts',
+        IEB_SENSITIVE_CAPABILITY,
         'instant-estimate-lead',
         'hgm_render_view_lead_screen'
     );
@@ -244,7 +252,7 @@ add_action('admin_menu', function() {
         null,
         'Legacy Lead Details',
         'Legacy Lead Details',
-        'edit_posts',
+        IEB_SENSITIVE_CAPABILITY,
         'hgm_view_lead',
         '__return_null'
     );
@@ -254,7 +262,7 @@ add_action('admin_menu', function() {
         IEB_ADMIN_MENU_SLUG,       // Parent slug
         'Integrations',              // Page title
         'Integrations',              // Menu title
-        'edit_posts',                // Capability
+        IEB_SENSITIVE_CAPABILITY,                // Capability
         'instant-estimate-integrations', // Menu slug
         'hgm_render_integrations_page' // Callback function
     );
@@ -391,12 +399,7 @@ add_action('admin_init', function () {
     register_setting('hgm_email_settings', 'hgm_email_settings', [
         'type' => 'array',
         'sanitize_callback' => function ($input) {
-            $existing = get_option('hgm_email_settings', []);
-            if (isset($input['sales_team_emails'])) {
-                $input['sales_team_emails'] = sanitize_textarea_field($input['sales_team_emails']);
-            }
-            // Preserve the estimate email template settings when this notifications form saves only the sales-team field.
-            return array_merge(is_array($existing) ? $existing : [], is_array($input) ? $input : []);
+            return function_exists('hgm_merge_email_settings') ? hgm_merge_email_settings($input) : (is_array($input) ? $input : []);
         },
         'default' => [],
     ]);
@@ -491,6 +494,10 @@ function hgm_save_quote_form_data_callback() {
         wp_send_json_error('Missing post ID or step data.');
     }
 
+    if (!current_user_can('edit_post', $post_id)) {
+        wp_send_json_error('Unauthorized.');
+    }
+
     // Save to hidden field (WordPress will pick this up on Update)
     $_POST['hgm_quote_questions_json'] = wp_json_encode($steps);
 
@@ -519,6 +526,10 @@ add_action('template_include', function ($template) {
     $form_id = isset($_GET['form_id']) ? absint($_GET['form_id']) : 0;
     if (!$form_id) {
         wp_die('Invalid form ID');
+    }
+
+    if (!current_user_can('edit_post', $form_id)) {
+        wp_die('You are not allowed to preview this estimate form.');
     }
 
     status_header(200);
@@ -588,7 +599,7 @@ add_filter('plugins_api', function ($result, $action, $args) {
     return (object) [
         'name'           => 'Instant Estimate Builder',
         'slug'           => 'instant-estimate-builder',
-        'version'        => '1.0.8',
+        'version'        => '1.0.10',
         'author'         => '<a href="https://taggartmediagroup.com/">Taggart Media Group</a>',
         'author_profile' => 'https://taggartmediagroup.com/',
         'homepage'       => 'https://taggartmediagroup.com/',
@@ -615,8 +626,8 @@ add_filter('plugins_api', function ($result, $action, $args) {
                 </ul>
             ',
             'changelog' => '
-                <h4>1.0.6</h4>
-                <ul><li>Rebranded user-facing plugin experience for broader local-service use.</li></ul>
+                <h4>1.0.10</h4>
+                <ul><li>Security hardening for admin capabilities, exports, AJAX actions, settings sanitization, and preview access.</li></ul>
             ',
         ],
     ];

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.13 - WordPress.org preparation
+
+- Added a WordPress.org plugin directory `readme.txt`.
+- Updated the dashboard done-for-you setup CTA for the public landing page.
+- Added launch landing page copy draft for review.
+
 ## 1.0.12 - Release packaging
 
 - Added release-asset ZIP support for cleaner WordPress plugin updates.

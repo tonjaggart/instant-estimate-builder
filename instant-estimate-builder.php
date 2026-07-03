@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Instant Estimate Builder
  * Description: Build customizable multi-step instant estimate forms for local service businesses with lead capture, notifications, and lead management.
- * Version: 1.0.12
+ * Version: 1.0.13
  * Requires at least: 5.4
  * Tested up to: 7.0
  * Requires PHP: 7.4
@@ -622,7 +622,7 @@ add_filter('plugins_api', function ($result, $action, $args) {
     return (object) [
         'name'           => 'Instant Estimate Builder',
         'slug'           => 'instant-estimate-builder',
-        'version'        => '1.0.12',
+        'version'        => '1.0.13',
         'author'         => '<a href="https://taggartmediagroup.com/">Taggart Media Group</a>',
         'author_profile' => 'https://taggartmediagroup.com/',
         'homepage'       => 'https://taggartmediagroup.com/',
@@ -649,6 +649,8 @@ add_filter('plugins_api', function ($result, $action, $args) {
                 </ul>
             ',
             'changelog' => '
+                <h4>1.0.13</h4>
+                <ul><li>Prepared plugin directory readme and updated the optional done-for-you setup CTA.</li></ul>
                 <h4>1.0.12</h4>
                 <ul><li>Use packaged release ZIP assets for cleaner WordPress updates.</li></ul>
                 <h4>1.0.11</h4>

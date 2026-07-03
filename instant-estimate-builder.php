@@ -17,37 +17,8 @@ if (!defined('ABSPATH')) {
     exit();
 } // Prevent direct access
 
-//Plugin update checker
-require_once plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
-use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
-$myUpdateChecker = PucFactory::buildUpdateChecker(
-    'https://github.com/tonjaggart/instant-estimate-builder', // GitHub repo for release metadata.
-    __FILE__,
-    'instant-estimate-builder'
-);
-
-$myUpdateChecker->getVcsApi()->enableReleaseAssets('/instant-estimate-builder\.zip$/i');
-
-$myUpdateChecker->addFilter('request_update_result', function ($update) {
-    if (empty($update)) {
-        return $update;
-    }
-
-    $plugin_url = plugin_dir_url(__FILE__);
-
-    $update->tested = '7.0';
-    $update->requires = '5.4';
-    $update->requires_php = '7.4';
-    $update->icons = [
-        '1x'      => $plugin_url . 'assets/plugin-icon.png',
-        '2x'      => $plugin_url . 'assets/plugin-icon@2x.png',
-        'default' => $plugin_url . 'assets/plugin-icon@2x.png',
-    ];
-
-    return $update;
-});
-
-// End plugin update checker
+// WordPress.org-hosted installs use the official WordPress.org update system.
+// The earlier GitHub release updater was intentionally removed for directory submission.
 
 // Define constants only once here in main plugin file (plugin root)
 define('HGM_PLUGIN_PATH', plugin_dir_path(__FILE__));
@@ -603,64 +574,6 @@ function hgm_get_cached_license_status($email = '', $license_key = '', $product_
         'message' => 'Instant Estimate Builder is free to use. No license key is required.',
     ];
 }
-
-// Provide custom plugin info for the "View details" modal.
-add_filter('plugins_api', function ($result, $action, $args) {
-    if ($action !== 'plugin_information') {
-        return $result;
-    }
-    if (empty($args->slug) || !in_array($args->slug, ['instant-estimate-builder', 'hvac-quote-generator'], true)) {
-        return $result;
-    }
-
-    $tested_wp = '7.0';
-
-    // Optional: point to your icon(s). If you only have one, reuse it for 1x/2x.
-    $icon_1x = HGM_PLUGIN_URL . 'assets/plugin-icon.png';
-    $icon_2x = HGM_PLUGIN_URL . 'assets/plugin-icon@2x.png';
-
-    return (object) [
-        'name'           => 'Instant Estimate Builder',
-        'slug'           => 'instant-estimate-builder',
-        'version'        => '1.0.13',
-        'author'         => '<a href="https://taggartmediagroup.com/">Taggart Media Group</a>',
-        'author_profile' => 'https://taggartmediagroup.com/',
-        'homepage'       => 'https://taggartmediagroup.com/',
-        'requires'       => '5.4',
-        'tested'         => $tested_wp,                 // ✅ dynamic
-        'requires_php'   => '7.4',                      // ✅ helpful metadata
-        'download_link'  => 'https://github.com/tonjaggart/instant-estimate-builder/releases/latest',
-
-        // NEW: show an icon in the “View details” modal
-        'icons' => [
-            '1x' => $icon_1x,
-            '2x' => $icon_2x,
-            // 'svg' => HGM_PLUGIN_URL . 'assets/plugin-icon.svg', // if you have one
-        ],
-
-        'sections' => [
-            'description' => '
-                <p>Instant Estimate Builder helps local service businesses turn website visitors into estimate-ready leads.</p>
-                <ul>
-                    <li>Multi‑step form with dynamic pricing</li>
-                    <li>Automatic estimate email to the customer</li>
-                    <li>Lead management + export</li>
-                    <li>SMS/email alerts for your team</li>
-                </ul>
-            ',
-            'changelog' => '
-                <h4>1.0.13</h4>
-                <ul><li>Prepared plugin directory readme and updated the optional done-for-you setup CTA.</li></ul>
-                <h4>1.0.12</h4>
-                <ul><li>Use packaged release ZIP assets for cleaner WordPress updates.</li></ul>
-                <h4>1.0.11</h4>
-                <ul><li>Updated plugin update metadata and branded icon assets.</li></ul>
-                <h4>1.0.10</h4>
-                <ul><li>Security hardening for admin capabilities, exports, AJAX actions, settings sanitization, and preview access.</li></ul>
-            ',
-        ],
-    ];
-}, 20, 3);
 
 // Clear schedules and caches on deactivation (no data deletion)
 register_deactivation_hook(__FILE__, function () {

@@ -104,6 +104,7 @@ Yes. Done-for-you setup is optional and available separately.
 * Added WordPress.org plugin directory readme.
 * Updated done-for-you setup CTA copy and link target.
 * Added public landing page copy draft for launch review.
+* Removed the GitHub release updater so WordPress.org installs use WordPress.org updates.
 
 = 1.0.12 =
 * Added packaged release ZIP support for cleaner WordPress plugin updates.

@@ -5,6 +5,7 @@
 - Added a WordPress.org plugin directory `readme.txt`.
 - Updated the dashboard done-for-you setup CTA for the public landing page.
 - Added launch landing page copy draft for review.
+- Removed the GitHub release updater and custom plugin-details override for WordPress.org submission.
 
 ## 1.0.12 - Release packaging
 

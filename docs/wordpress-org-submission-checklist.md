@@ -14,33 +14,23 @@ Prepared in branch:
 - Legacy shortcodes and identifiers are preserved for existing installs.
 - License flow is compatibility-only and no longer blocks free use.
 - WordPress.org-style `readme.txt` added.
-- Dashboard done-for-you setup CTA points to the planned landing page.
+- Dashboard done-for-you setup CTA points to the published production landing page.
 - Landing page copy draft added in `docs/done-for-you-landing-page-copy.md`.
+- Production landing page exists at `https://taggartmediagroup.com/instant-estimate-builder/`.
+- Production WooCommerce setup product exists and checkout is wired from the landing page.
+- GitHub release updater removed from the plugin entrypoint so WordPress.org-hosted installs use WordPress.org updates.
+- WordPress.org banner and icon assets exist in `assets/`.
 
 ## Still Needed Before WordPress.org Submission
 
-1. Create/publish the landing page:
-   - `https://taggartmediagroup.com/instant-estimate-builder/`
-
-2. Add plugin screenshots:
+1. Add plugin screenshots:
    - Dashboard
    - Form builder
    - Frontend multi-step form
    - Lead inbox
    - Notification settings
 
-3. Add WordPress.org assets:
-   - `assets/banner-772x250.png`
-   - `assets/banner-1544x500.png`
-   - `assets/icon-128x128.png`
-   - `assets/icon-256x256.png`
-
-4. Decide update-source strategy for WordPress.org:
-   - WordPress.org-hosted copies should use WordPress.org updates.
-   - Existing GitHub-installed client copies currently use Plugin Update Checker.
-   - Before submission, decide whether to remove Plugin Update Checker from the WordPress.org build or gate it so public directory installs do not use a competing update source.
-
-5. Run a final security/compliance review:
+2. Run a final security/compliance review:
    - Nonces for state-changing actions
    - Capability checks
    - Sanitization before save
@@ -49,9 +39,9 @@ Prepared in branch:
    - No private client references
    - No credentials/secrets
 
-6. Submit the plugin through WordPress.org developer portal.
+3. Submit the plugin through WordPress.org developer portal.
 
-7. After approval, push to WordPress.org SVN:
+4. After approval, push to WordPress.org SVN:
    - `/trunk`
    - `/tags/1.0.13`
    - `/assets`

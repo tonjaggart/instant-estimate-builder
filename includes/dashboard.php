@@ -70,7 +70,7 @@ function hgm_render_dashboard_page() {
     echo '<h2>Let Us Build Your First Estimate Form</h2>';
     echo '<p>Want the plugin ready faster? Taggart Media Group can set up your services, pricing ranges, notifications, styling, testing, and launch so you can start capturing estimate-ready leads.</p>';
     echo '<div class="hgm-price-pill">Done-For-You Setup: Starting at $299</div>';
-    echo '<a href="https://taggartmediagroup.com/instant-estimate-builder/" target="_blank" rel="noopener" class="button button-primary hgm-button-primary">Learn More</a>';
+    echo '<a href="https://taggartmediagroup.com/instant-estimate-builder/?utm_source=instant_estimate_builder&utm_medium=plugin&utm_campaign=wporg_launch&utm_content=dashboard_done_for_you_cta" target="_blank" rel="noopener" class="button button-primary hgm-button-primary">Learn More</a>';
     echo '<p class="hgm-dashboard-note">Plugin stays free. Setup help is optional.</p>';
     echo '</div>';
 

@@ -7,7 +7,7 @@
  * Tested up to: 7.0
  * Requires PHP: 7.4
  * Author: Taggart Media Group
- * Author URI: https://taggartmediagroup.com
+ * Author URI: https://taggartmediagroup.com/?utm_source=instant_estimate_builder&utm_medium=plugin&utm_campaign=wporg_launch&utm_content=author_uri
  * License: GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: instant-estimate-builder

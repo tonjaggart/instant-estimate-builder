@@ -266,6 +266,10 @@ function hgm_submit_quote_form() {
     $zip_code   = sanitize_text_field($_POST['zip_code'] ?? '');
     $form_id    = isset($_POST['form_id']) ? absint($_POST['form_id']) : 0;
 
+    if (!$form_id || get_post_type($form_id) !== 'instant_quote_form') {
+        wp_send_json_error(['message' => 'Invalid estimate form.']);
+    }
+
     $form_data_json = wp_unslash($_POST['_hgm_form_data'] ?? '');
     $form_data = json_decode($form_data_json, true);
     $calculated_estimate = hgm_calculate_server_side_estimate($form_id, $form_data);
@@ -292,16 +296,13 @@ function hgm_submit_quote_form() {
         'post_status' => 'publish',
     ]);
 
-    if ($form_id) {
-        update_post_meta($lead_id, '_hgm_form_id', $form_id);
-    }
-
-    update_post_meta($lead_id, '_hgm_form_data', wp_json_encode($form_data));
-
-    if (is_wp_error($lead_id)) {
+    if (is_wp_error($lead_id) || !$lead_id) {
         wp_send_json_error(['message' => 'Failed to save lead.']);
         wp_die();
     }
+
+    update_post_meta($lead_id, '_hgm_form_id', $form_id);
+    update_post_meta($lead_id, '_hgm_form_data', wp_json_encode($form_data));
 
     update_post_meta($lead_id, 'first_name', $first_name);
     update_post_meta($lead_id, 'email', $email);
@@ -320,6 +321,13 @@ function hgm_submit_quote_form() {
 
     $quote_form_id = get_post_meta($lead_id, '_hgm_form_id', true);
     $form_title = get_the_title($quote_form_id);
+    $quote_form_data = $form_id ? get_post_meta($form_id, '_hgm_form_data', true) : [];
+    if (is_string($quote_form_data)) {
+        $quote_form_data = json_decode($quote_form_data, true);
+    }
+    if (!is_array($quote_form_data)) {
+        $quote_form_data = [];
+    }
 
 
     // ======================

@@ -18,11 +18,7 @@ if (empty($form_data) || !is_array($form_data)) {
 // Load saved color and log it
 $button_color = get_post_meta($form_id, '_hgm_quote_button_color', true) ?: '#E84232';
 ?>
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
-
     :root {
         --bg-color: #F2EDEB;
         --primary: <?php echo esc_attr($button_color); ?>;
@@ -34,7 +30,7 @@ $button_color = get_post_meta($form_id, '_hgm_quote_button_color', true) ?: '#E8
 
     body {
         /* background-color: var(--bg-color); */
-        font-family: 'DM Sans';    
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         letter-spacing: -0.01em;
         color:var(--text-color);
         overflow-x: hidden;
@@ -450,7 +446,7 @@ $button_color = get_post_meta($form_id, '_hgm_quote_button_color', true) ?: '#E8
         box-shadow: unset;
     }
     .btn-group .item label {
-        padding: 0px 0px 0px 35px; 
+        padding: 0px 0px 0px 35px;
         margin: 0px 0px;
         width: auto;
         text-align: left;
@@ -556,7 +552,7 @@ $button_color = get_post_meta($form_id, '_hgm_quote_button_color', true) ?: '#E8
             display: block;
             margin-bottom: 15px;
             margin-top: 30px;
-        }  
+        }
 
         .multi-step-form button.btn.btn-success {
             margin-inline: auto;
@@ -619,7 +615,7 @@ $button_color = get_post_meta($form_id, '_hgm_quote_button_color', true) ?: '#E8
         .step-title sup span,
         .step-title sup:hover span{
             text-align: left;
-        }    
+        }
         button.prev-btn{
             padding:0;
         }
@@ -732,9 +728,9 @@ $button_color = get_post_meta($form_id, '_hgm_quote_button_color', true) ?: '#E8
                                         <select class="quiz-select-dropdown form-select" aria-label="Default select example" name="step_<?php echo esc_attr($step_id); ?>">
                                             <option value="">Select an option</option>
                                             <?php foreach ($options as $opt): ?>
-                                            <option 
-                                                    value="<?php echo esc_attr($opt['label']); ?>" 
-                                                    data-min="<?php echo esc_attr($opt['low'] ?? 0); ?>" 
+                                            <option
+                                                    value="<?php echo esc_attr($opt['label']); ?>"
+                                                    data-min="<?php echo esc_attr($opt['low'] ?? 0); ?>"
                                                     data-max="<?php echo esc_attr($opt['high'] ?? 0); ?>">
                                                 <?php echo esc_html($opt['label']); ?>
                                             </option>
@@ -743,18 +739,18 @@ $button_color = get_post_meta($form_id, '_hgm_quote_button_color', true) ?: '#E8
 
                                         <?php elseif ($type === 'radio'): ?>
                                         <div class="btn-group card-option" role="group">
-                                            <?php foreach ($options as $i => $opt): 
+                                            <?php foreach ($options as $i => $opt):
                                             $opt_id = 'step' . $step_id . '_option' . $i;
                                             ?>
                                             <div class="item">
-                                                <input 
-                                                       type="radio" 
-                                                       class="btn-check" 
-                                                       name="step_<?php echo esc_attr($step_id); ?>" 
-                                                       id="<?php echo esc_attr($opt_id); ?>" 
-                                                       autocomplete="off" 
+                                                <input
+                                                       type="radio"
+                                                       class="btn-check"
+                                                       name="step_<?php echo esc_attr($step_id); ?>"
+                                                       id="<?php echo esc_attr($opt_id); ?>"
+                                                       autocomplete="off"
                                                        value="<?php echo esc_attr($opt['label']); ?>"
-                                                       data-min="<?php echo esc_attr($opt['low'] ?? 0); ?>" 
+                                                       data-min="<?php echo esc_attr($opt['low'] ?? 0); ?>"
                                                        data-max="<?php echo esc_attr($opt['high'] ?? 0); ?>">
                                                 <span for="<?php echo esc_attr($opt_id); ?>"></span>
                                                 <label class="btn-outline-primary" for="<?php echo esc_attr($opt_id); ?>">
@@ -791,13 +787,13 @@ $button_color = get_post_meta($form_id, '_hgm_quote_button_color', true) ?: '#E8
 
                         <div class="form-step" id="step<?php echo esc_attr($total_steps); ?>">
                             <h2 class="step-title"><?php echo esc_html($total_steps); ?>. Send Estimate
-                                <sup>? 
+                                <sup>?
                                     <span>
                                         This will help us get you the information you requested. Please watch your spam folders as sometimes the quotes are intercepted.
                                     </span>
                                 </sup>
                             </h2>
-                            <p>Where should we send your estimate?</p>                                                            
+                            <p>Where should we send your estimate?</p>
                             <div class="mb-3">
                                 <div class="row">
                                     <div class="col-md-6 form-group">

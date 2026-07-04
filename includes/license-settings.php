@@ -21,7 +21,7 @@ function hgm_render_license_settings_page() {
         <p>Taggart Media Group can configure your services, estimate ranges, notifications, styling, and test the full form for you.</p>
         <p><strong>One-time setup: $299</strong></p>
         <p>
-            <a class="button button-primary" href="https://taggartmediagroup.com/" target="_blank" rel="noopener">Get Setup Help</a>
+            <a class="button button-primary" href="https://taggartmediagroup.com/instant-estimate-builder/?utm_source=instant_estimate_builder&utm_medium=plugin&utm_campaign=wporg_launch&utm_content=updates_setup_help_cta" target="_blank" rel="noopener">Get Setup Help</a>
         </p>
     </div>
 </div>

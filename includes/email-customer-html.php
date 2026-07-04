@@ -158,14 +158,13 @@ if (!defined('ABSPATH')) {
                         </tr>
 
                         <!-- Footer -->
+                        <?php if (!empty($company_name)): ?>
                         <tr>
                             <td style="padding: 20px; text-align: center; background-color: #f4f4f4; font-size: 12px; color: #999;">
-                                © <?php echo date("Y"); ?>
-                                <a href="https://taggartmediagroup.com?utm_source=estimate&utm_medium=email&utm_campaign=<?php echo urlencode($company_name); ?>" style="color: #999; text-decoration: underline;">
-                                    Taggart Media Group.
-                                </a> All rights reserved.
+                                © <?php echo esc_html(date("Y")); ?> <?php echo esc_html($company_name); ?>. All rights reserved.
                             </td>
                         </tr>
+                        <?php endif; ?>
                     </table>
                 </td>
             </tr>

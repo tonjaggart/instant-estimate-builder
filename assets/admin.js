@@ -58,6 +58,15 @@ jQuery(document).ready(function($) {
         $(this).closest('.hgm-answer-row').remove();
     });
 
+    function hgmEscapeAttr(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
     let stepCount = 0;
     const stepsContainer = $('#hgm-steps-container');
 
@@ -83,13 +92,13 @@ jQuery(document).ready(function($) {
           <div class="hgm-answer-row">
               <div class="hgm-price-input">
                   <label>Answer Options</label>
-                  <input type="text" class="hgm-answer-label" placeholder="Answer" value="${opt.label || ''}" />
+                  <input type="text" class="hgm-answer-label" placeholder="Answer" value="${hgmEscapeAttr(opt.label)}" />
               </div>
               <div class="hgm-price-input">
                   <label for="hgm-low-${stepCount}-${i}">Low $ Amount</label>
                   <div class="hgm-dollar-wrapper">
                       <span class="dollar-sign">$</span>
-                      <input type="text" id="hgm-low-${stepCount}-${i}" class="hgm-answer-low" placeholder="e.g. 500" value="${opt.low || ''}" />
+                      <input type="text" id="hgm-low-${stepCount}-${i}" class="hgm-answer-low" placeholder="e.g. 500" value="${hgmEscapeAttr(opt.low)}" />
                   </div>
                   <small class="hgm-price-hint">Only numbers. No $ or commas allowed.</small>
               </div>
@@ -97,7 +106,7 @@ jQuery(document).ready(function($) {
                   <label for="hgm-high-${stepCount}-${i}">High $ Amount</label>
                   <div class="hgm-dollar-wrapper">
                       <span class="dollar-sign">$</span>
-                      <input type="text" id="hgm-high-${stepCount}-${i}" class="hgm-answer-high" placeholder="e.g. 2000" value="${opt.high || ''}" />
+                      <input type="text" id="hgm-high-${stepCount}-${i}" class="hgm-answer-high" placeholder="e.g. 2000" value="${hgmEscapeAttr(opt.high)}" />
                   </div>
                   <small class="hgm-price-hint">Only numbers. No $ or commas allowed.</small>
               </div>
@@ -113,16 +122,16 @@ jQuery(document).ready(function($) {
               </div>
 
               <label>Question Title</label>
-              <input type="text" class="hgm-step-title" value="${data.title || ''}" />
+              <input type="text" class="hgm-step-title" value="${hgmEscapeAttr(data.title)}" />
 
               <label>Question</label>
-              <input type="text" class="hgm-step-subtitle" value="${data.subtitle || ''}" />
+              <input type="text" class="hgm-step-subtitle" value="${hgmEscapeAttr(data.subtitle)}" />
 
               <label>Bold Label Text (optional)</label>
               <small style="display:block; margin-bottom:5px; color:#666;">
                   This will describe the Answer they need to select or type. e.g. Square Footage
               </small>
-              <input type="text" class="hgm-step-bold-label" value="${data.boldLabel || ''}" />
+              <input type="text" class="hgm-step-bold-label" value="${hgmEscapeAttr(data.boldLabel)}" />
 
               <label>Input Type</label>
               <select class="hgm-step-type">
@@ -141,15 +150,15 @@ jQuery(document).ready(function($) {
               <small style="display:block; margin-bottom:5px; color:#666;">
                   This icon appears next to the question and shows more information on how to answer when the user hovers over it.
               </small>
-              <input type="text" class="hgm-step-tooltip" value="${data.tooltip || ''}" />
+              <input type="text" class="hgm-step-tooltip" value="${hgmEscapeAttr(data.tooltip)}" />
 
               <label>Question Image</label>
-              <input type="text" class="hgm-step-image-url" value="${data.image || ''}" readonly />
+              <input type="text" class="hgm-step-image-url" value="${hgmEscapeAttr(data.image)}" readonly />
               <button type="button" class="button hgm-upload-image">Upload Image</button>
               <button type="button" class="button hgm-choose-media">Choose Media</button>
 
               <div class="hgm-image-preview-wrapper" style="position: relative; display: inline-block; max-width: 150px; margin-top: 10px;">
-                  <img src="${data.image || ''}" class="hgm-image-preview" style="${data.image ? '' : 'display:none;'} width: 100%;" />
+                  <img src="${hgmEscapeAttr(data.image)}" class="hgm-image-preview" style="${data.image ? '' : 'display:none;'} width: 100%;" />
                   <button type="button" class="hgm-image-remove-x" style="position: absolute; top: 2px; right: 2px; background: white; color: red; font-weight: bold; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; display: ${data.image ? 'block' : 'none'};">×</button>
               </div>
           </div>

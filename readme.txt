@@ -47,6 +47,18 @@ The plugin is free to install and use. If you want help getting your first form 
 
 Optional setup help is not required to use the plugin.
 
+= Privacy / External Services =
+
+Instant Estimate Builder stores form settings and leads on your WordPress site. The plugin does not silently send lead data to Taggart Media Group.
+
+Optional integrations and support resources may connect to third-party services only when you configure or view those features:
+
+* Klaviyo: If you enter a Klaviyo private API key and enable Klaviyo for a form, submitted lead details may be sent to Klaviyo, including name, email, phone, form name, and estimate range. Endpoint: `https://a.klaviyo.com/api/`. Klaviyo privacy policy: `https://www.klaviyo.com/legal/privacy`. Klaviyo terms: `https://www.klaviyo.com/legal/terms-of-service`.
+* SMS/email-to-text notifications: If you configure text notification recipients, lead notification messages are sent through your WordPress email system to the selected carrier email-to-SMS gateway for each recipient. The data sent may include lead contact details and estimate information.
+* Loom support videos: The plugin support page includes embedded tutorial videos hosted by Loom. Viewing the support page may load video content from `https://www.loom.com/`. Loom privacy policy: `https://www.loom.com/privacy-policy`. Loom terms: `https://www.loom.com/terms`.
+
+These services are optional and are not required to create or use estimate forms.
+
 == Installation ==
 
 1. Upload the plugin files to the `/wp-content/plugins/instant-estimate-builder` directory, or install the plugin through the WordPress Plugins screen.
@@ -105,6 +117,8 @@ Yes. Done-for-you setup is optional and available separately.
 * Updated done-for-you setup CTA copy and link target.
 * Added public landing page copy draft for launch review.
 * Removed the GitHub release updater so WordPress.org installs use WordPress.org updates.
+* Added external service disclosures and removed remote CDN/font dependencies for WordPress.org compliance.
+* Removed the vendor tracking footer from customer estimate emails.
 
 = 1.0.12 =
 * Added packaged release ZIP support for cleaner WordPress plugin updates.

@@ -483,21 +483,22 @@ function hgm_save_quote_form_data_callback() {
     check_ajax_referer('hgm_nonce', 'nonce');
 
     $post_id   = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
-    $steps     = isset($_POST['steps']) ? $_POST['steps'] : [];
+    $steps     = isset($_POST['steps']) ? wp_unslash($_POST['steps']) : [];
 
-    if (!$post_id || empty($steps)) {
-        wp_send_json_error('Missing post ID or step data.');
+    if (!$post_id || empty($steps) || get_post_type($post_id) !== 'instant_quote_form') {
+        wp_send_json_error('Missing or invalid estimate form data.');
     }
 
     if (!current_user_can('edit_post', $post_id)) {
         wp_send_json_error('Unauthorized.');
     }
 
-    // Save to hidden field (WordPress will pick this up on Update)
-    $_POST['hgm_quote_questions_json'] = wp_json_encode($steps);
+    $sanitized_steps = function_exists('ieb_sanitize_form_builder_data')
+        ? ieb_sanitize_form_builder_data($steps)
+        : [];
 
-    // Manually trigger save_post hook to persist the meta (acts like clicking "Update")
-    do_action('save_post_instant_quote_form', $post_id);
+    update_post_meta($post_id, '_hgm_form_data', $sanitized_steps);
+    update_post_meta($post_id, 'hgm_quote_questions', wp_json_encode($sanitized_steps));
 
     wp_send_json_success('Form saved successfully.');
 }

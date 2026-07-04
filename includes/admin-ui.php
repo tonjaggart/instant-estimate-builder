@@ -75,7 +75,7 @@ function hgm_render_quote_form_edit_screen()
         $form_data = is_array($decoded) ? $decoded : [];
     }
 
-    $encoded_data = wp_json_encode($form_data);
+    $encoded_data = wp_json_encode($form_data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
     echo "<script>window.hgm_quote_questions = " . $encoded_data . ";</script>";
 
@@ -83,6 +83,7 @@ function hgm_render_quote_form_edit_screen()
     echo '<h3 style="margin-bottom: 10px;">Build Your Instant Estimate Form</h3>';
     echo "<p><em>Click “Add a Question” to begin building your instant estimate form.</em></p>";
     echo '<div id="hgm-steps-container"></div>';
+    echo '<input type="hidden" name="hgm_quote_questions_json" id="hgm_quote_questions_json" value="" />';
 
     $form_preview_url = add_query_arg(
         array(
@@ -99,6 +100,33 @@ function hgm_render_quote_form_edit_screen()
 
     echo "</div>";
 }
+function ieb_sanitize_form_builder_data($steps)
+{
+    $steps = is_array($steps) ? $steps : [];
+
+    return array_values(array_map(function ($step) {
+        $step = is_array($step) ? $step : [];
+        $options = is_array($step["options"] ?? null) ? $step["options"] : [];
+
+        return [
+            "title" => sanitize_text_field($step["title"] ?? ""),
+            "subtitle" => sanitize_text_field($step["subtitle"] ?? ""),
+            "boldLabel" => sanitize_text_field($step["boldLabel"] ?? ""),
+            "type" => in_array(($step["type"] ?? "radio"), ["radio", "dropdown", "text"], true) ? $step["type"] : "radio",
+            "tooltip" => sanitize_text_field($step["tooltip"] ?? ""),
+            "image" => esc_url_raw($step["image"] ?? ""),
+            "options" => array_values(array_map(function ($option) {
+                $option = is_array($option) ? $option : [];
+                return [
+                    "label" => sanitize_text_field($option["label"] ?? ""),
+                    "low" => isset($option["low"]) && is_numeric($option["low"]) ? floatval($option["low"]) : 0,
+                    "high" => isset($option["high"]) && is_numeric($option["high"]) ? floatval($option["high"]) : 0,
+                ];
+            }, $options)),
+        ];
+    }, $steps));
+}
+
 function hgm_save_quote_form_metabox($post_id)
 {
     if (
@@ -116,9 +144,9 @@ function hgm_save_quote_form_metabox($post_id)
     }
 
     if (isset($_POST["hgm_form_data_json"])) {
-        $data = json_decode(stripslashes($_POST["hgm_form_data_json"]), true);
+        $data = json_decode(wp_unslash($_POST["hgm_form_data_json"]), true);
         if (is_array($data)) {
-            update_post_meta($post_id, "_hgm_form_data", $data);
+            update_post_meta($post_id, "_hgm_form_data", ieb_sanitize_form_builder_data($data));
         }
     }
 }
@@ -140,16 +168,16 @@ function hgm_enqueue_admin_assets($hook)
 
     wp_enqueue_script(
         "cropper-js",
-        "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js",
+        plugin_dir_url(dirname(__FILE__)) . "assets/vendor/cropperjs/cropper.min.js",
         [],
-        null,
+        "1.5.13",
         true
     );
     wp_enqueue_style(
         "cropper-css",
-        "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css",
+        plugin_dir_url(dirname(__FILE__)) . "assets/vendor/cropperjs/cropper.min.css",
         [],
-        null
+        "1.5.13"
     );
 
     // Correct paths to assets folder at plugin root
@@ -291,8 +319,10 @@ function hgm_save_quote_form_data($post_id)
     }
 
     if (isset($_POST["hgm_form_data_json"])) {
-        $json = wp_unslash($_POST["hgm_form_data_json"]);
-        update_post_meta($post_id, "hgm_quote_questions", $json);
+        $decoded = json_decode(wp_unslash($_POST["hgm_form_data_json"]), true);
+        if (is_array($decoded)) {
+            update_post_meta($post_id, "hgm_quote_questions", wp_json_encode(ieb_sanitize_form_builder_data($decoded)));
+        }
     }
 }
 add_action("wp_enqueue_scripts", function () {

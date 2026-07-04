@@ -21,6 +21,9 @@ Prepared in branch:
 - GitHub release updater removed from the plugin entrypoint so WordPress.org-hosted installs use WordPress.org updates.
 - WordPress.org banner and icon assets exist in `assets/`.
 - WordPress.org screenshots exist in `assets/screenshot-1.png` through `assets/screenshot-5.png`.
+- External service disclosures added to `readme.txt`.
+- Remote CDN/font dependencies removed or bundled locally.
+- Customer estimate email no longer includes a hardcoded Taggart Media Group tracking footer.
 
 ## Still Needed Before WordPress.org Submission
 

@@ -205,6 +205,36 @@ function hgm_calculate_server_side_estimate($form_id, $submitted_form_data) {
         $saved_steps = [];
     }
 
+    // Only a real saved option can satisfy a pricing condition. Resolve all
+    // answers first so calculation is independent of submitted key order.
+    $selected = [];
+    foreach ($saved_steps as $index => $step) {
+        $key = 'step_' . ($index + 1);
+        $label = sanitize_text_field($submitted_form_data[$key]['label'] ?? '');
+        foreach (($step['options'] ?? []) as $option) {
+            $saved_label = sanitize_text_field($option['label'] ?? '');
+            if ($label !== '' && hash_equals($saved_label, $label)) {
+                $selected[$key] = $saved_label;
+                break;
+            }
+        }
+    }
+    $pricing_valid = true;
+    $has_conditional_pricing = false;
+    foreach ($saved_steps as $step) {
+        foreach (($step['options'] ?? []) as $option) {
+            if (!empty($option['conditional_prices'])) {
+                $has_conditional_pricing = true;
+            }
+        }
+    }
+    if ($has_conditional_pricing) {
+        foreach ($saved_steps as $index => $step) {
+            if (!empty($step['options']) && !isset($selected['step_' . ($index + 1)])) {
+                $pricing_valid = false;
+            }
+        }
+    }
     foreach ($submitted_form_data as $step_key => $submitted_step) {
         $step_key = sanitize_key($step_key);
         $submitted_label = sanitize_text_field($submitted_step['label'] ?? '');
@@ -220,6 +250,24 @@ function hgm_calculate_server_side_estimate($form_id, $submitted_form_data) {
                 if ($submitted_label !== '' && hash_equals($option_label, $submitted_label)) {
                     $low = isset($option['low']) && is_numeric($option['low']) ? floatval($option['low']) : 0;
                     $high = isset($option['high']) && is_numeric($option['high']) ? floatval($option['high']) : 0;
+                    $rules = $option['conditional_prices'] ?? [];
+                    if (is_array($rules) && count($rules)) {
+                        $matched_rule = false;
+                        foreach ($rules as $rule) {
+                            $condition_key = 'step_' . absint($rule['step'] ?? 0);
+                            $condition_label = sanitize_text_field($rule['label'] ?? '');
+                            if ($condition_label !== '' && isset($selected[$condition_key]) && hash_equals($selected[$condition_key], $condition_label) && is_numeric($rule['low'] ?? null) && is_numeric($rule['high'] ?? null)) {
+                                $low = floatval($rule['low']);
+                                $high = floatval($rule['high']);
+                                $matched_rule = true;
+                                break;
+                            }
+                        }
+                        if (!$matched_rule) {
+                            $pricing_valid = false;
+                            $low = $high = 0;
+                        }
+                    }
 
                     $safe_form_data[$step_key] = [
                         'label' => $option_label,
@@ -248,6 +296,7 @@ function hgm_calculate_server_side_estimate($form_id, $submitted_form_data) {
         'form_data' => $safe_form_data,
         'low_total' => $low_total,
         'high_total' => $high_total,
+        'pricing_valid' => $pricing_valid,
     ];
 }
 
@@ -274,6 +323,9 @@ function hgm_submit_quote_form() {
     $high_total = $calculated_estimate['high_total'];
 
     $errors = [];
+    if (!$calculated_estimate['pricing_valid']) {
+        $errors['pricing'] = 'Please check your answers or contact us for an estimate.';
+    }
 
     if (empty($first_name)) $errors['first_name'] = 'First name is required.';
     if (empty($email) || !is_email($email)) $errors['email'] = 'A valid email is required.';

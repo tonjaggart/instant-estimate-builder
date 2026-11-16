@@ -417,6 +417,18 @@
     border-top: 1px solid #e2e8f0;
 }
 
+.hgm-conditional-pricing {
+    flex-basis: 100%;
+}
+.hgm-conditional-pricing summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+.hgm-conditional-pricing label {
+    display: inline-flex;
+    flex-direction: column;
+}
+
 .hgm-answer-row:first-of-type {
     border-top: 0;
 }

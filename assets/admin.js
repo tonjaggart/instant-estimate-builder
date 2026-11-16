@@ -58,6 +58,30 @@ jQuery(document).ready(function($) {
         $(this).closest('.hgm-answer-row').remove();
     });
 
+    // Conditional prices replace this answer's regular price when a prior
+    // question has the given answer. They are stored with the answer itself.
+    function addConditionalEditor($row, rules) {
+        const $box = $('<details class="hgm-conditional-pricing"><summary>Conditional prices (optional)</summary><p>When a prior question has the exact answer below, use the conditional amounts instead of the regular amounts. Add a row for every possible answer.</p><div class="hgm-conditional-rows"></div><button type="button" class="button hgm-add-condition">+ Add conditional price</button></details>');
+        $row.append($box);
+        function addRule(rule) {
+            const $rule = $('<div class="hgm-condition-row" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:8px 0"><label>Question number <input class="hgm-condition-step" type="number" min="1" step="1" style="width:80px"></label><label>Exact answer <input class="hgm-condition-label" type="text"></label><label>Low $ <input class="hgm-condition-low" type="number" min="0" step="0.01" style="width:100px"></label><label>High $ <input class="hgm-condition-high" type="number" min="0" step="0.01" style="width:100px"></label><button type="button" class="button hgm-remove-condition">Remove</button></div>');
+            $rule.find('.hgm-condition-step').val(rule.step || '');
+            $rule.find('.hgm-condition-label').val(rule.label || '');
+            $rule.find('.hgm-condition-low').val(rule.low ?? '');
+            $rule.find('.hgm-condition-high').val(rule.high ?? '');
+            $box.find('.hgm-conditional-rows').append($rule);
+        }
+        (rules || []).forEach(addRule);
+        $box.on('click', '.hgm-add-condition', () => addRule({}));
+        $box.on('click', '.hgm-remove-condition', function () { $(this).closest('.hgm-condition-row').remove(); });
+    }
+    window.hgmCollectConditionalPrices = function ($row) {
+        return $row.find('.hgm-condition-row').map(function () {
+            const $rule = $(this);
+            return {step: Number($rule.find('.hgm-condition-step').val()), label: $rule.find('.hgm-condition-label').val().trim(), low: Number($rule.find('.hgm-condition-low').val()), high: Number($rule.find('.hgm-condition-high').val())};
+        }).get();
+    };
+
     let stepCount = 0;
     const stepsContainer = $('#hgm-steps-container');
 
@@ -154,6 +178,9 @@ jQuery(document).ready(function($) {
               </div>
           </div>
       `);
+        step.find('.hgm-answer-row').each(function (i) {
+            addConditionalEditor($(this), (data.options[i] || {}).conditional_prices || []);
+        });
         // Validation for Question Title maxlength 20
         $(document).on('input', '.hgm-step-title', function() {
             if ($(this).val().length > 20) {
@@ -199,7 +226,9 @@ jQuery(document).ready(function($) {
       </div>
     `;
 
-            step.find('.hgm-answers-wrapper').append(newAnswerHTML);
+            const $newAnswer = $(newAnswerHTML);
+            addConditionalEditor($newAnswer, []);
+            step.find('.hgm-answers-wrapper').append($newAnswer);
         });
 
         // Upload image handler
@@ -330,8 +359,43 @@ jQuery(document).ready(function($) {
     const saveField = $('<input type="hidden" name="hgm_form_data_json" id="hgm_form_data_json" />');
     $('form#post').append(saveField);
 
+    // Reject stale references and incomplete matrices before either save path.
+    function validateConditions() {
+        const $steps = $('.hgm-step-card');
+        let error = '';
+        $steps.each(function (index) {
+            $(this).find('.hgm-answer-row').each(function () {
+                const $rules = $(this).find('.hgm-condition-row');
+                if (!$rules.length || error) return;
+                let reference = null;
+                const seen = new Set();
+                $rules.each(function () {
+                    const $rule = $(this), step = Number($rule.find('.hgm-condition-step').val());
+                    const label = $rule.find('.hgm-condition-label').val().trim();
+                    const low = $rule.find('.hgm-condition-low').val(), high = $rule.find('.hgm-condition-high').val();
+                    if (!Number.isInteger(step) || step < 1 || step > index || (reference !== null && reference !== step) || !label || low === '' || high === '' || !Number.isFinite(Number(low)) || !Number.isFinite(Number(high)) || Number(low) < 0 || Number(high) < Number(low) || seen.has(label)) {
+                        error = 'Conditional prices need one earlier question, unique exact answers, and valid low/high amounts.';
+                        return false;
+                    }
+                    reference = step;
+                    seen.add(label);
+                });
+                if (error) return false;
+                const answers = $steps.eq(reference - 1).find('.hgm-answer-label').map(function () { return $(this).val().trim(); }).get();
+                if (!answers.length || answers.some(a => !a || !seen.has(a)) || seen.size !== answers.length) {
+                    error = 'Conditional prices must cover every answer of the referenced question exactly once. Check spelling and question number.';
+                    return false;
+                }
+            });
+            if (error) return false;
+        });
+        if (error) alert(error);
+        return !error;
+    }
+
     // Serialize form data on submit
-    $('form#post').on('submit', function () {
+    $('form#post').on('submit', function (event) {
+        if (!validateConditions()) { event.preventDefault(); event.stopImmediatePropagation(); return false; }
         const allSteps = [];
 
         $('.hgm-step-card').each(function () {
@@ -342,7 +406,8 @@ jQuery(document).ready(function($) {
                 options.push({
                     label: $(this).find('.hgm-answer-label').val(),
                     low: parseFloat($(this).find('.hgm-answer-low').val()) || 0,
-                    high: parseFloat($(this).find('.hgm-answer-high').val()) || 0
+                    high: parseFloat($(this).find('.hgm-answer-high').val()) || 0,
+                    conditional_prices: window.hgmCollectConditionalPrices($(this))
                 });
             });
 
@@ -393,7 +458,8 @@ jQuery(document).ready(function($) {
                 options.push({
                     label: $(this).find('.hgm-answer-label').val(),
                     low: parseFloat($(this).find('.hgm-answer-low').val()) || 0,
-                    high: parseFloat($(this).find('.hgm-answer-high').val()) || 0
+                    high: parseFloat($(this).find('.hgm-answer-high').val()) || 0,
+                    conditional_prices: window.hgmCollectConditionalPrices($(this))
                 });
             });
 

@@ -72,6 +72,25 @@ function hgm_render_notifications_settings_page() {
     if ($active_tab === 'text') {
         $notification_options = get_option('hgm_notification_settings', []);
         $saved_recipients = $notification_options['sms_recipients'] ?? [];
+        $planned_sms = get_option('ieb_planned_sms_interest', []);
+
+        echo '<div class="hgm-dashboard-card ieb-notifications-card" id="ieb-planned-sms">';
+        echo '<div class="hgm-card-label">Prelaunch · Not active</div>';
+        echo '<h2>Planned SMS alerts for administrators</h2>';
+        echo '<p>Taggart Media Group plans to send optional text alerts about new instant estimate leads to participating business administrators. Message frequency varies; message and data rates may apply.</p>';
+        echo '<p>Once the service is available, reply STOP to opt out or HELP for help. These reply functions and SMS sending are not available yet. This is a prelaunch preference, not permission to send messages; we will request consent again before activation.</p>';
+        echo '<p><a href="https://taggartmediagroup.com/privacy-policy/" target="_blank" rel="noopener noreferrer">Taggart Media Group privacy policy</a>. SMS terms are not yet available.</p>';
+        echo '<form method="post" action="options.php" class="ieb-notifications-form">';
+        settings_fields('ieb_planned_sms_interest');
+        echo '<p><label for="ieb-planned-sms-phone"><strong>Your mobile number</strong></label><br><input id="ieb-planned-sms-phone" type="tel" inputmode="numeric" name="ieb_planned_sms_interest[phone]" value="' . esc_attr($planned_sms['phone'] ?? '') . '" placeholder="10-digit mobile number" class="regular-text" /></p>';
+        echo '<p><label><input type="checkbox" name="ieb_planned_sms_interest[opt_in]" value="1" /> I am the user of this number and want to express interest in receiving these future text alerts from Taggart Media Group. This is optional.</label></p>';
+        if (!empty($planned_sms['opt_in'])) {
+            echo '<p>Prelaunch preference saved. To keep it, check the box again; to withdraw it, leave the box unchecked and save.</p>';
+        } else {
+            echo '<p>Not enrolled. Leave the box unchecked to withdraw any saved preference.</p>';
+        }
+        submit_button('Save Prelaunch Preference', 'secondary', 'submit', true);
+        echo '</form></div>';
 
         $carriers = [
             'verizon'    => 'Verizon',
@@ -82,9 +101,9 @@ function hgm_render_notifications_settings_page() {
         ];
 
         echo '<div class="hgm-dashboard-card ieb-notifications-card">';
-        echo '<div class="hgm-card-label">Text Alerts</div>';
-        echo '<h2>Text Notifications For New Estimate Leads</h2>';
-        echo '<p>Add the phone numbers that should receive a text alert when a new estimate lead is submitted.</p>';
+        echo '<div class="hgm-card-label">Existing carrier gateways</div>';
+        echo '<h2>Legacy Email-to-Text Notifications</h2>';
+        echo '<p>These existing carrier email gateways are separate from the planned SMS service and delivery is not guaranteed.</p>';
         echo '<form method="post" action="options.php" class="ieb-notifications-form">';
         settings_fields('hgm_notification_settings');
         echo '<div class="ieb-notification-field-row">';
@@ -124,6 +143,25 @@ function hgm_render_notifications_settings_page() {
     echo '</div>';
 }
 
+// This record is a prelaunch preference only. No sender reads it or sends messages.
+function ieb_sanitize_planned_sms_interest($input) {
+    $input = is_array($input) ? $input : [];
+    $phone = preg_replace('/\D+/', '', is_scalar($input['phone'] ?? '') ? (string) ($input['phone'] ?? '') : '');
+    if (!in_array($input['opt_in'] ?? '', ['1', true], true) || strlen($phone) !== 10) {
+        return ['opt_in' => false, 'phone' => ''];
+    }
+    $old = get_option('ieb_planned_sms_interest', []);
+    $user_id = get_current_user_id();
+    $same = !empty($old['opt_in']) && ($old['phone'] ?? '') === $phone && ($old['user_id'] ?? 0) === $user_id && !empty($old['recorded_at']);
+    return [
+        'opt_in' => true,
+        'phone' => $phone,
+        'user_id' => $user_id,
+        'recorded_at' => $same ? $old['recorded_at'] : current_time('mysql', true),
+        'disclosure_version' => 'prelaunch-1',
+    ];
+}
+
 function ieb_sanitize_notification_settings($input) {
     $input = is_array($input) ? $input : [];
     $allowed_carriers = ['verizon', 'att', 'tmobile', 'sprint', 'uscellular'];
@@ -151,11 +189,20 @@ function ieb_sanitize_notification_settings($input) {
 }
 
 add_action('admin_init', function () {
+    register_setting('ieb_planned_sms_interest', 'ieb_planned_sms_interest', [
+        'type' => 'array',
+        'sanitize_callback' => 'ieb_sanitize_planned_sms_interest',
+        'default' => [],
+    ]);
     register_setting('hgm_notification_settings', 'hgm_notification_settings', [
         'type' => 'array',
         'sanitize_callback' => 'ieb_sanitize_notification_settings',
         'default' => [],
     ]);
+});
+
+add_filter('option_page_capability_ieb_planned_sms_interest', function () {
+    return defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options';
 });
 
 add_filter('option_page_capability_hgm_notification_settings', function () {

@@ -348,7 +348,8 @@ function hgm_submit_quote_form() {
         update_post_meta($lead_id, '_hgm_form_id', $form_id);
     }
 
-    update_post_meta($lead_id, '_hgm_form_data', wp_json_encode($form_data));
+    // WordPress metadata APIs unslash values before storage; protect JSON escapes.
+    update_post_meta($lead_id, '_hgm_form_data', wp_slash(wp_json_encode($form_data)));
 
     if (is_wp_error($lead_id)) {
         wp_send_json_error(['message' => 'Failed to save lead.']);

@@ -214,7 +214,7 @@ add_action('admin_post_hgm_send_test_email', function () {
     }
 
     $to = sanitize_email($_POST['hgm_test_email']);
-    $subject = '[Test] HVAC Estimate Email';
+    $subject = '[PREVIEW] Instant Online Estimate for Customer';
 
     $email_settings = get_option('hgm_email_settings', []);
 

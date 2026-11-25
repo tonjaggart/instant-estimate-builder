@@ -5,6 +5,9 @@ ini_set('display_errors','0'); ini_set('log_errors','0');
 try {
     $path=getenv('IEB_RELAY_CONFIG'); $c=json_decode(file_get_contents($path),true,16,JSON_THROW_ON_ERROR);
     if (($c['live_send_enabled']??false)!==true) { fwrite(STDERR,"Sending disabled\n"); exit(2); }
+    // Release blocker: never dispatch without a current-authority protocol.
+    // Deliberately not configurable. See README before removing this gate.
+    fwrite(STDERR,"Sending disabled: authorization recheck unavailable\n"); exit(2);
     require_once __DIR__.'/vendor/autoload.php'; require_once __DIR__.'/queue.php'; require_once __DIR__.'/twilio.php';
     if (!is_file($c['database']??'') || !preg_match('/\A[0-9a-f]{64}\z/D',$c['encryption_key']??'')) throw new RuntimeException('Invalid config');
     $tw=$c['twilio']; if (!preg_match('/\AAC[0-9a-fA-F]{32}\z/D',$tw['account_sid']??'') || !is_string($tw['auth_token']??null) || strlen($tw['auth_token'])<8) throw new RuntimeException('Invalid config');

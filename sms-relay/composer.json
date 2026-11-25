@@ -1,0 +1,12 @@
+{
+  "name": "taggart/ieb-sms-relay",
+  "description": "Separately hosted Instant Estimate Builder SMS relay",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=8.1",
+    "ext-curl": "*",
+    "ext-pdo_sqlite": "*",
+    "ext-sodium": "*",
+    "twilio/sdk": "^8.0"
+  }
+}

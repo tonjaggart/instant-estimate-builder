@@ -17,7 +17,7 @@ reject_queue(fn() => $q->enqueue('install_123', 'lead_1', $phone, $changed, 1700
 $send = function($to, $message) use (&$calls, $phone) { $calls[] = [$to,$message]; check_queue($to === $phone, 'recipient mismatch'); return 'accepted'; };
 $calls=[];
 check_queue($q->dispatchOne($send, 1700000004) === 'accepted', 'dispatch');
-check_queue(count($calls) === 1 && strpos($calls[0][1], 'Synthetic Person') !== false && strpos($calls[0][1], 'Synthetic Service') !== false && strpos($calls[0][1], '+12025550102') !== false, 'message missing lead data');
+check_queue(count($calls) === 1 && strpos($calls[0][1], 'Taggart') !== false && strpos($calls[0][1], 'Synthetic Person') !== false && strpos($calls[0][1], 'Synthetic Service') !== false && strpos($calls[0][1], '+12025550102') !== false, 'message missing sender branding or lead data');
 check_queue($q->dispatchOne($send, 1700000005) === 'empty' && count($calls) === 1, 'duplicate dispatch');
 $q->enqueue('install_123', 'lead_2', $phone, $lead, 1700000006);
 check_queue($q->dispatchOne(fn() => 'retryable', 1700000007) === 'retryable', 'retryable result');

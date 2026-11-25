@@ -82,11 +82,19 @@ final class IebSmsQueue {
         $this->checkId($id); $this->checkId($actor); $hash=$this->phash($phone);
         if ($requestId!==null && !preg_match('/\A[0-9a-f]{32}\z/D',$requestId)) throw new InvalidArgumentException('Invalid request id');
         $this->atomic(function() use($id,$hash,$actor,$now,$requestId) {
-            if ($requestId!==null) $this->query('INSERT OR IGNORE INTO ieb_sms_verification_revocations (installation,request_id) VALUES (?,?)',[$id,$requestId]);
+            if ($requestId!==null) {
+                $this->query('INSERT OR IGNORE INTO ieb_sms_verification_revocations (installation,request_id) VALUES (?,?)',[$id,$requestId]);
+                // A delayed retry for an old generation must never cancel a newer
+                // enrollment or its queued jobs. The tombstone also fences an
+                // earlier verification request that has not arrived yet.
+                $this->query("UPDATE ieb_sms_verifications SET state='cancelled',ciphertext='' WHERE installation=? AND phone_hash=? AND request_id=? AND state IN ('queued','unknown','accepted','verified')",[$id,$hash,$requestId]);
+                $current=$this->query('SELECT epoch FROM ieb_sms_consent_epochs WHERE installation=? AND phone_hash=?',[$id,$hash])->fetchColumn();
+                if ($current!==$requestId) return;
+            }
             $this->query('UPDATE ieb_sms_consents SET active=0 WHERE installation=? AND phone_hash=?',[$id,$hash]);
             $this->query('DELETE FROM ieb_sms_consent_epochs WHERE installation=? AND phone_hash=?',[$id,$hash]);
             $this->query("UPDATE ieb_sms_messages SET state='suppressed',ciphertext='' WHERE installation=? AND phone_hash=? AND state IN ('queued','retry')",[$id,$hash]);
-            $this->query("UPDATE ieb_sms_verifications SET state='cancelled',ciphertext='' WHERE installation=? AND phone_hash=? AND state IN ('queued','unknown','accepted','verified')",[$id,$hash]);
+            if ($requestId===null) $this->query("UPDATE ieb_sms_verifications SET state='cancelled',ciphertext='' WHERE installation=? AND phone_hash=? AND state IN ('queued','unknown','accepted','verified')",[$id,$hash]);
             $this->query('INSERT INTO ieb_sms_consent_audit (installation,phone_hash,actor,notice,action,occurred_at) VALUES (?,?,?,?,?,?)',[$id,$hash,$actor,'','revoke',$now]);
         });
     }

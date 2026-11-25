@@ -16,8 +16,10 @@ $db=new PDO('sqlite::memory:'); $key=random_bytes(32); $queue=new IebSmsQueue($d
 $queue->install(); ieb_auth_install_schema($db); $queue->configureInstallation(IEB_SMS_INSTALLATION,100,true);
 $api=new IebRelayApi($db,$queue,[IEB_SMS_INSTALLATION=>IEB_SMS_SECRET],$verify);
 remove_all_filters('pre_http_request');
-add_filter('pre_http_request',function($pre,$args,$url) use ($api) {
+$relayDown=false;
+add_filter('pre_http_request',function($pre,$args,$url) use ($api,&$relayDown) {
     if (!str_starts_with($url,'https://relay.example.test/v1/')) throw new RuntimeException('Unexpected outbound HTTP');
+    if ($relayDown) return new WP_Error('synthetic_outage','Synthetic relay unavailable');
     $h=$args['headers']; [$status,$body]=$api->handle('POST',parse_url($url,PHP_URL_PATH),['installation'=>$h['X-Installation'],'timestamp'=>$h['X-Timestamp'],'nonce'=>$h['X-Nonce'],'signature'=>$h['X-Signature']],$args['body'],time());
     return ['response'=>['code'=>$status,'message'=>'Synthetic'],'body'=>json_encode($body),'headers'=>[],'cookies'=>[]];
 },PHP_INT_MIN,3);
@@ -85,7 +87,10 @@ check_multi($queue->dispatchOne($fake,time())==='accepted' && $queue->dispatchOn
 $tos=array_column(array_slice($messages,3),0); sort($tos); $expected=array_slice($phones,0,2); sort($expected);
 check_multi($tos===$expected,'both verified numbers, not pending, received the alert');
 echo "PASS: distinct durable jobs and fake provider alerts\n";
-check_multi(!ieb_sms_process_admin(['_wpnonce'=>'wrong','operation'=>'revoke','recipient'=>(string)$jobs[0]['uid']]),'nonce required');
+check_multi(!ieb_sms_process_admin(['_wpnonce'=>'wrong','operation'=>'remove','recipient'=>(string)$jobs[0]['uid']]),'remove requires nonce');
+wp_set_current_user(0);
+check_multi(!ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'remove','recipient'=>(string)$jobs[0]['uid']]),'remove requires capability');
+wp_set_current_user(1);
 check_multi(!ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'confirm','recipient'=>'not-an-id','code'=>'123456']),'recipient ID must be valid');
 check_multi(!ieb_sms_request_enrollment('(202) 555-0101',true),'normalized duplicate verified number rejected');
 require_once ABSPATH.'wp-admin/includes/template.php';
@@ -101,12 +106,32 @@ update_post_meta($oldLead,'first_name','Fence'); update_post_meta($oldLead,'phon
 check_multi(ieb_sms_queue_lead($oldLead),'generation fence fixture queued');
 $oldJob=null; foreach (get_post_meta($oldLead,'_ieb_sms_pending',false) as $job) if ($job['uid']===$firstId) $oldJob=$job;
 check_multi(is_array($oldJob),'first recipient has old generation job');
-check_multi(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'revoke','recipient'=>(string)$firstId]),'first recipient opted out');
+$beforeSecond=ieb_sms_recipients()[$secondId];
+ieb_sms_dispatch_lead($oldLead,$firstId); // Relay accepts a synthetic alert before removal.
+$firstEvent=$oldJob['event'];
+check_multi((int)$db->query("SELECT count(*) FROM ieb_sms_messages WHERE event=".$db->quote($firstEvent)." AND state='queued'")->fetchColumn()===1,'first relay job queued before removal');
+$relayDown=true;
+check_multi(!ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'remove','recipient'=>(string)$firstId]),'outage does not falsely report removal');
+check_multi((ieb_sms_recipients()[$firstId]['status'] ?? '')==='revoked','outage retains local tombstone');
+check_multi(!ieb_sms_request_enrollment($phones[0],true),'outage blocks reenrollment');
+ob_start(); ieb_sms_render_settings(); $outageHtml=ob_get_clean();
+check_multi(str_contains($outageHtml,'Removal is not complete') && str_contains($outageHtml,'Retry removal') && str_contains($outageHtml,'queued at the relay'),'outage UI is actionable and honest');
+check_multi(ieb_sms_recipients()[$secondId]===$beforeSecond,'outage leaves other number intact');
+$relayDown=false;
+check_multi(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'remove','recipient'=>(string)$firstId]),'first recipient removed');
+check_multi(!isset(ieb_sms_recipients()[$firstId]),'removed row absent');
+check_multi(ieb_sms_recipients()[$secondId]===$beforeSecond,'other recipient untouched');
+check_multi((int)$db->query("SELECT count(*) FROM ieb_sms_messages WHERE event=".$db->quote($firstEvent)." AND state='suppressed' AND ciphertext=''")->fetchColumn()===1,'relay cancels queued job and erases payload');
+check_multi(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'remove','recipient'=>(string)$firstId]),'remove retry is idempotent');
 check_multi(ieb_sms_request_enrollment($phones[0],true),'first recipient requests new generation');
+$newFirstId=null; foreach (ieb_sms_recipients() as $id=>$row) if ($row['phone']===$phones[0]) $newFirstId=(int)$id;
+check_multi($newFirstId!==null && $newFirstId!==$firstId && ieb_sms_recipients()[$newFirstId]['status']==='pending','readd gets new id and requires verification');
+check_multi(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'remove','recipient'=>(string)$firstId]),'stale retry is harmless');
+check_multi(isset(ieb_sms_recipients()[$newFirstId]),'stale remove cannot delete new enrollment');
 check_multi($verify->dispatch($fake,time())==='accepted','new verification reached fake provider');
 preg_match('/\b([0-9]{6})\b/',end($messages)[1],$code);
-check_multi(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'confirm','recipient'=>(string)$firstId,'code'=>$code[1]]),'first recipient confirms new generation');
-check_multi(ieb_sms_recipients()[$firstId]['request_id']!==$oldJob['request_id'],'new consent has new generation');
+check_multi(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'confirm','recipient'=>(string)$newFirstId,'code'=>$code[1]]),'first recipient confirms new generation');
+check_multi(ieb_sms_recipients()[$newFirstId]['request_id']!==$oldJob['request_id'],'new consent has new generation');
 ieb_sms_dispatch_lead($oldLead,$firstId);
 check_multi(count(get_post_meta($oldLead,'_ieb_sms_pending',false))===1,'old generation discarded, other recipient remains');
 ieb_sms_dispatch_lead($oldLead,$jobs[1]['phone']===$phones[1] ? $jobs[1]['uid'] : $jobs[0]['uid']);

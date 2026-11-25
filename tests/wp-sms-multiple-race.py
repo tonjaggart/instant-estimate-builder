@@ -39,3 +39,21 @@ with tempfile.TemporaryDirectory(dir=root.parent) as directory:
     jobs = json.loads(run('jobs', lead, env=env))
     assert len(jobs) == 3 and len({j['uid'] for j in jobs}) == 3 and len({j['event'] for j in jobs}) == 3, jobs
     print('PASS: concurrent normalized duplicate and distinct enrollments; concurrent submissions create one job per recipient')
+    # Competing fanout may snapshot before removal; its stale job must not dispatch afterward.
+    lead2 = run('lead-setup', env=env).strip()
+    before = json.loads(run('rows', env=env))
+    removed = next(iter(before))
+    race([['remove', removed], ['lead', lead2]], env)
+    after = json.loads(run('rows', env=env))
+    assert removed not in after and all(after[k] == v for k, v in before.items() if k != removed), after
+    run('dispatch', lead2, removed, env=env)
+    assert not Path(directory, 'events').exists(), 'removed recipient dispatched after removal'
+    # A duplicate stale removal is harmless even when re-enrollment races it.
+    target = next(iter(after)); phone = after[target]['phone']
+    race([['remove', target], ['enroll', phone]], env)
+    rows = json.loads(run('rows', env=env))
+    assert target not in rows, rows
+    assert run('remove-now', target, env=env).strip() == '1'
+    assert json.loads(run('rows', env=env)) == rows
+    assert all(r['phone'] != phone or r['status'] == 'pending' for r in rows.values()), rows
+    print('PASS: concurrent removal with fanout and re-enrollment; stale removal is harmless')

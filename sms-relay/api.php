@@ -29,7 +29,7 @@ final class IebRelayApi {
             }
             elseif ($path==='/v1/revoke') { if (array_key_exists('request_id',$data) && !is_string($data['request_id'])) return [400,['error'=>'invalid_request']]; $this->queue->revoke($id,$data['phone'],$data['actor'],$now,$data['request_id']??null); $result='revoked'; }
             else { $lead=$data['lead']; if (!is_string($data['request_id']) || !is_array($lead) || count($lead)!==3 || !isset($lead['name'],$lead['phone'],$lead['service'])) return [400,['error'=>'invalid_request']]; $result=$this->queue->enqueue($id,$data['event'],$data['phone'],['name'=>$lead['name'],'phone'=>$lead['phone'],'service'=>$lead['service']],$now,$data['request_id']); }
-            return [200,['result'=>$result]];
+            return [200,$path==='/v1/revoke' && isset($data['request_id']) ? ['result'=>$result,'generation_scoped_revoke'=>true] : ['result'=>$result]];
         } catch (DomainException $e) { return [409,['error'=>'not_allowed_or_conflict']]; }
         catch (JsonException|TypeError|InvalidArgumentException $e) { return [400,['error'=>'invalid_request']]; }
     }

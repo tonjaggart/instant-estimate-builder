@@ -11,9 +11,13 @@ require __DIR__.'/../includes/sms-client.php';
 wp_set_current_user(1); remove_all_filters('pre_schedule_event');
 remove_all_filters('pre_http_request');
 add_filter('pre_http_request',function($pre,$args,$url) {
-    if ($url!=='https://relay.example.test/v1/verification/request') throw new RuntimeException('Unexpected HTTP');
-    file_put_contents(getenv('IEB_RACE_DIR').'/requests',$args['body']."\n",FILE_APPEND|LOCK_EX);
-    return ['response'=>['code'=>202],'body'=>'{"result":"requested"}','headers'=>[],'cookies'=>[]];
+    if ($url==='https://relay.example.test/v1/verification/request') {
+        file_put_contents(getenv('IEB_RACE_DIR').'/requests',$args['body']."\n",FILE_APPEND|LOCK_EX);
+        return ['response'=>['code'=>202],'body'=>'{"result":"requested"}','headers'=>[],'cookies'=>[]];
+    }
+    if ($url==='https://relay.example.test/v1/revoke') return ['response'=>['code'=>200],'body'=>'{"result":"revoked","generation_scoped_revoke":true}','headers'=>[],'cookies'=>[]];
+    if ($url==='https://relay.example.test/v1/events') { file_put_contents(getenv('IEB_RACE_DIR').'/events',$args['body']."\n",FILE_APPEND|LOCK_EX); return ['response'=>['code'=>200],'body'=>'{"result":"queued"}','headers'=>[],'cookies'=>[]]; }
+    throw new RuntimeException('Unexpected HTTP');
 },PHP_INT_MIN,3);
 $mode=$argv[1];
 if ($mode==='setup') {
@@ -29,6 +33,8 @@ if ($mode==='lead-setup') {
     update_post_meta($lead,'first_name','Synthetic'); update_post_meta($lead,'phone','2025550199'); update_post_meta($lead,'_hgm_form_id',$form); echo $lead; exit;
 }
 if ($mode==='jobs') { echo json_encode(get_post_meta((int)$argv[2],'_ieb_sms_pending',false)); exit; }
+if ($mode==='dispatch') { ieb_sms_dispatch_lead((int)$argv[2],(int)$argv[3]); exit; }
+if ($mode==='remove-now') { echo ieb_sms_remove_recipient((int)$argv[2]) ? '1' : '0'; exit; }
 // Prime state/meta before waiting so each process has a potentially stale cache.
 get_option(ieb_sms_state_key(),false);
 if ($mode==='lead') get_post_meta((int)$argv[2],'first_name',true);
@@ -37,4 +43,5 @@ while (count(glob($dir.'/ready-*'))<2 && microtime(true)<$until) usleep(10000);
 if (count(glob($dir.'/ready-*'))<2) throw new RuntimeException('Race barrier timed out');
 if ($mode==='enroll') ieb_sms_request_enrollment($argv[2],true);
 elseif ($mode==='lead') ieb_sms_queue_lead((int)$argv[2]);
+elseif ($mode==='remove') { if (!ieb_sms_remove_recipient((int)$argv[2])) throw new RuntimeException('remove failed'); }
 else throw new RuntimeException('Invalid mode');

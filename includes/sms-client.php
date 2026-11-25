@@ -35,9 +35,10 @@ function ieb_sms_mutate_recipients($callback) {
     try {
         wp_cache_delete(ieb_sms_state_key(),'options'); wp_cache_delete('notoptions','options'); wp_cache_delete('alloptions','options');
         $raw=get_option(ieb_sms_state_key(),false); $rows=ieb_sms_recipients();
-        $result=$callback($rows);
+        $extra=is_array($raw) && isset($raw['next_id']) ? ['next_id'=>$raw['next_id']] : [];
+        $result=$callback($rows,$extra);
         if ($result===false) return false;
-        $new=['recipients'=>$rows];
+        $new=['recipients'=>$rows]+$extra;
         if ($new!==$raw) {
             $saved=$raw===false ? add_option(ieb_sms_state_key(),$new,'',false) : update_option(ieb_sms_state_key(),$new,false);
             if (!$saved) return false;
@@ -72,23 +73,41 @@ function ieb_sms_post($path, $data) {
             $expected=['/v1/verification/request'=>['requested'],'/v1/verification/confirm'=>['verified'],'/v1/revoke'=>['revoked'],'/v1/events'=>['queued','duplicate']];
             $decoded=json_decode(wp_remote_retrieve_body($response),true);
             if (!is_array($decoded) || !in_array($decoded['result'] ?? null,$expected[$path],true) || ($path==='/v1/verification/request' ? $status!==202 : $status!==200)) return 0;
+            if ($path==='/v1/revoke' && ($decoded['generation_scoped_revoke'] ?? false)!==true) return 0;
         }
         return $status;
     } catch (Throwable $e) { return 0; }
 }
-function ieb_sms_request_enrollment($phone, $optin) {
+// Lifecycle I/O must be serialized: an old revoke must not race a new request.
+function ieb_sms_lifecycle($callback) {
+    global $wpdb;
+    $lock='ieb_life_'.substr(hash('sha256',DB_NAME.'|'.$wpdb->options.'|'.ieb_sms_state_key()),0,48);
+    if ((string)$wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 3)',$lock))!=='1') return false;
+    try {
+        wp_cache_delete(ieb_sms_state_key(),'options'); wp_cache_delete('notoptions','options'); wp_cache_delete('alloptions','options');
+        return $callback();
+    } finally { $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)',$lock)); }
+}
+function ieb_sms_request_enrollment($phone,$optin) {
+    return ieb_sms_lifecycle(function() use ($phone,$optin) { return ieb_sms_request_enrollment_locked($phone,$optin); });
+}
+function ieb_sms_request_enrollment_locked($phone, $optin) {
     $phone=ieb_sms_normalize_phone($phone);
     if (!ieb_sms_configured() || !ieb_sms_allowed_user() || $optin!==true || !$phone) return false;
     try {
-        $state=ieb_sms_mutate_recipients(function (&$rows) use ($phone) {
+        $state=ieb_sms_mutate_recipients(function (&$rows,&$extra) use ($phone) {
             foreach ($rows as $id=>$row) {
                 if (($row['phone'] ?? '')!==$phone) continue;
                 if (($row['status'] ?? '')==='pending') return $row;
-                if (($row['status'] ?? '')!=='revoked' || empty($row['revoke_ack'])) return false;
-                $rows[$id]=['status'=>'pending','phone'=>$phone,'request_id'=>bin2hex(random_bytes(16)),'actor'=>'admin_'.get_current_user_id()];
-                return $rows[$id];
+                // Revoked rows must be removed before any fresh enrollment, so
+                // stale remove submissions can never target a new generation.
+                return false;
             }
-            if (!$rows) $id=1;
+            if (isset($extra['next_id'])) {
+                $id=(int)$extra['next_id'];
+                if ($id<1 || $id>9999999999 || isset($rows[$id])) return false;
+                $extra['next_id']=$id+1;
+            } elseif (!$rows) $id=1;
             else { do { $id=random_int(2,2147483647); } while (isset($rows[$id])); }
             $rows[$id]=['status'=>'pending','phone'=>$phone,'request_id'=>bin2hex(random_bytes(16)),'actor'=>'admin_'.get_current_user_id()];
             return $rows[$id];
@@ -98,6 +117,9 @@ function ieb_sms_request_enrollment($phone, $optin) {
     } catch (Throwable $e) { return false; }
 }
 function ieb_sms_confirm_enrollment($code,$id=1) {
+    return ieb_sms_lifecycle(function() use ($code,$id) { return ieb_sms_confirm_enrollment_locked($code,$id); });
+}
+function ieb_sms_confirm_enrollment_locked($code,$id=1) {
     if (!ieb_sms_configured() || !ieb_sms_allowed_user() || !is_string($code) || !preg_match('/\A[0-9]{6}\z/D',$code)) return false;
     $state=ieb_sms_recipients()[(int)$id] ?? null;
     if (!is_array($state) || ($state['status'] ?? '')!=='pending') return false;
@@ -106,6 +128,9 @@ function ieb_sms_confirm_enrollment($code,$id=1) {
     return ieb_sms_change_recipient((int)$id,$state,$new);
 }
 function ieb_sms_revoke_enrollment($id=1) {
+    return ieb_sms_lifecycle(function() use ($id) { return ieb_sms_revoke_enrollment_locked($id); });
+}
+function ieb_sms_revoke_enrollment_locked($id=1) {
     if (!ieb_sms_allowed_user()) return false;
     $state=ieb_sms_recipients()[(int)$id] ?? null;
     if (!is_array($state) || empty($state['phone'])) return false;
@@ -114,6 +139,25 @@ function ieb_sms_revoke_enrollment($id=1) {
     if (empty($new['request_id']) || ieb_sms_post('/v1/revoke',['phone'=>$new['phone'],'actor'=>$new['actor'],'request_id'=>$new['request_id']])!==200) return false;
     $ack=$new; $ack['revoke_ack']=true;
     return ieb_sms_change_recipient((int)$id,$new,$ack);
+}
+/** Delete only after a generation-aware relay acknowledges revocation. */
+function ieb_sms_remove_recipient($id) {
+    if (!ieb_sms_allowed_user()) return false;
+    return ieb_sms_lifecycle(function() use ($id) {
+        $id=(int)$id;
+        $state=ieb_sms_recipients()[$id] ?? null;
+        if ($state===null) return true; // Retried submission, never reused ID.
+        if (!ieb_sms_revoke_enrollment_locked($id)) return false;
+        return ieb_sms_mutate_recipients(function (&$rows,&$extra) use ($id) {
+            $state=$rows[$id] ?? null;
+            if (!is_array($state) || ($state['status'] ?? '')!=='revoked' || empty($state['revoke_ack'])) return false;
+            // Retain only an integer high-water mark, not the deleted phone.
+            $max=$id; foreach (array_keys($rows) as $key) $max=max($max,(int)$key);
+            $extra['next_id']=max((int)($extra['next_id'] ?? 1),$max+1);
+            unset($rows[$id]);
+            return true;
+        });
+    });
 }
 /** Failure records deliberately contain no lead details or relay response bodies. */
 function ieb_sms_record_failure($lead_id, $reason, $status=0) {
@@ -298,6 +342,7 @@ function ieb_sms_process_admin($post) {
         $code=$post['code'] ?? ''; return is_string($code) && ieb_sms_confirm_enrollment(trim(wp_unslash($code)),(int)$recipient);
     }
     if ($operation==='revoke') return ieb_sms_revoke_enrollment((int)$recipient);
+    if ($operation==='remove') return ieb_sms_remove_recipient((int)$recipient);
     return false;
 }
 function ieb_sms_render_settings() {
@@ -314,21 +359,22 @@ function ieb_sms_render_settings() {
     if (!ieb_sms_configured()) { echo '<p>The SMS relay is not configured. This site cannot initiate or manage alerts; previously queued relay messages may still be processed. Reply STOP or contact support@taggartmediagroup.com for help.</p></div>'; return; }
     $states=ieb_sms_recipients();
     if (!$states) echo '<p>No numbers enrolled. Each recipient must agree and verify their own phone.</p>';
-    if (isset($_GET['sms_result']) && $_GET['sms_result']==='error') echo '<p>Action could not be confirmed. Check the number’s status, retry, or contact support@taggartmediagroup.com. An opt-out that could not reach the relay may not cancel messages already queued there.</p>';
+    if (isset($_GET['sms_result']) && $_GET['sms_result']==='error') echo '<p>Action could not be confirmed. Check the number’s status, retry, or contact support@taggartmediagroup.com. A removal that could not reach the relay may not cancel messages already queued there.</p>';
+    elseif (isset($_GET['sms_result']) && $_GET['sms_result']==='removed') echo '<p>Number is no longer listed. A message already being sent cannot be recalled.</p>';
     elseif (isset($_GET['sms_result']) && $_GET['sms_result']==='ok') echo '<p>Action processed. Requesting a code does not confirm delivery or enrollment.</p>';
     foreach ($states as $id=>$state) {
         $status=$state['status'] ?? ''; $phone=$state['phone'] ?? '';
         echo '<section><h3>'.esc_html($phone).'</h3>';
         if ($status==='verified') echo '<p>Verified. Delivery is not guaranteed; STOP or relay restrictions may prevent messages. Reply STOP to opt out or HELP for help.</p>';
-        elseif ($status==='pending') echo '<p>Verification requested. Enter the code sent to this number. To request a new code after expiry, opt out and enroll again.</p>';
-        elseif ($status==='revoked') echo '<p>Alerts are disabled locally. If relay revocation failed, retry opt-out, reply STOP or contact support@taggartmediagroup.com.</p>';
+        elseif ($status==='pending') echo '<p>Verification requested. Enter the code sent to this number. To request a new code after expiry, remove the number and enroll again.</p>';
+        elseif ($status==='revoked') echo '<p>Removal is not complete. Alerts are disabled locally, but messages already queued at the relay may still be sent. Retry removal, reply STOP, or contact support@taggartmediagroup.com.</p>';
         if ($status==='pending') {
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">'; wp_nonce_field('ieb_sms_enrollment');
             echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="confirm"><input type="hidden" name="recipient" value="'.esc_attr((string)$id).'"><p><label>Verification code <input name="code" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" required></label></p><button class="button" type="submit">Confirm code</button></form>';
         }
         if (in_array($status,['verified','pending','revoked'],true)) {
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">'; wp_nonce_field('ieb_sms_enrollment');
-            echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="revoke"><input type="hidden" name="recipient" value="'.esc_attr((string)$id).'"><p><button class="button" type="submit">Opt out</button></p></form>';
+            echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="remove"><input type="hidden" name="recipient" value="'.esc_attr((string)$id).'"><p><button class="button" type="submit">'.($status==='revoked'?'Retry removal':'Remove number').'</button></p></form>';
         }
         echo '</section>';
     }
@@ -342,7 +388,8 @@ function ieb_sms_render_settings() {
 }
 function ieb_sms_admin_post() {
     $result=ieb_sms_process_admin($_POST);
-    wp_safe_redirect(admin_url('admin.php?page=instant-estimate-notifications&tab=text&sms_result='.($result?'ok':'error')));
+    $notice=$result ? (($_POST['operation'] ?? '')==='remove' ? 'removed' : 'ok') : 'error';
+    wp_safe_redirect(admin_url('admin.php?page=instant-estimate-notifications&tab=text&sms_result='.$notice));
     exit;
 }
 add_action('admin_post_ieb_sms_enrollment','ieb_sms_admin_post');

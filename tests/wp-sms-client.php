@@ -53,13 +53,14 @@ function wp_safe_remote_post($url,$args) {
         return ['response'=>['code'=>$status],'body'=>$body];
     }
     $h=$args['headers']; [$status,$body]=$GLOBALS['api']->handle('POST',parse_url($url,PHP_URL_PATH),['installation'=>$h['X-Installation'],'timestamp'=>$h['X-Timestamp'],'nonce'=>$h['X-Nonce'],'signature'=>$h['X-Signature']],$args['body'],time());
+    if (!empty($GLOBALS['legacy_relay']) && str_ends_with($url,'/v1/revoke')) unset($body['generation_scoped_revoke']);
     return ['response'=>['code'=>$status],'body'=>json_encode($body)];
 }
 function is_wp_error($v) { return false; }
 function wp_remote_retrieve_response_code($v) {
     if (!empty($GLOBALS['lose_response'])) { $GLOBALS['lose_response']=false; return 503; }
     if (!empty($GLOBALS['confirm_race'])) {
-        $GLOBALS['confirm_race']=false; $key=ieb_sms_state_key(); $GLOBALS['options'][1][$key]['recipients'][1]['status']='revoked'; $GLOBALS['options'][1][$key]['recipients'][1]['revoke_ack']=false;
+        $GLOBALS['confirm_race']=false; $key=ieb_sms_state_key(); $id=$GLOBALS['confirm_race_id'] ?? 1; $GLOBALS['options'][1][$key]['recipients'][$id]['status']='revoked'; $GLOBALS['options'][1][$key]['recipients'][$id]['revoke_ack']=false;
     }
     return $v['response']['code'];
 }
@@ -178,11 +179,14 @@ expect(function_exists('ieb_sms_render_settings'), 'admin SMS settings rendered'
 ob_start(); ieb_sms_render_settings(); $html=ob_get_clean();
 expect(strpos($html,IEB_SMS_SECRET)===false, 'secret not rendered in admin');
 expect(strpos($html,'name="opt_in"')!==false && strpos($html,'I am the user of this number')!==false && strpos($html,'Reply HELP for help or STOP')!==false, 'own-number consent and opt out displayed');
+expect(!ieb_sms_request_enrollment('+15551230101',true), 'revoked row cannot be re-enrolled without removal');
+expect(ieb_sms_remove_recipient(1), 'remove acknowledged revoked row');
 expect(ieb_sms_request_enrollment('+15551230101',true), 'new test enrollment');
+$rows=ieb_sms_recipients(); $newId=(int)array_key_first($rows);
+expect($newId!==1, 'removed id is never reused');
 expect($verify->dispatch($send,time())==='accepted', 'new fake verification');
-preg_match('/\b([0-9]{6})\b/',end($messages)[1],$m); $GLOBALS['confirm_race']=true;
-expect(!ieb_sms_confirm_enrollment($m[1]), 'concurrent local revoke cannot be overwritten by confirmation');
-expect(($GLOBALS['options'][1][ieb_sms_state_key()]['recipients'][1]['status'] ?? '')==='revoked', 'revoked state survives confirmation race');
-$GLOBALS['options'][1][ieb_sms_state_key()]['recipients'][1]['revoke_ack']=true; $GLOBALS['write_race']=true;
-expect(!ieb_sms_request_enrollment('+15551230101',true), 'new request cannot overwrite concurrent revocation state');
+preg_match('/\b([0-9]{6})\b/',end($messages)[1],$m); $GLOBALS['confirm_race']=true; $GLOBALS['confirm_race_id']=$newId;
+expect(!ieb_sms_confirm_enrollment($m[1],$newId), 'concurrent local revoke cannot be overwritten by confirmation');
+expect(($GLOBALS['options'][1][ieb_sms_state_key()]['recipients'][$newId]['status'] ?? '')==='revoked', 'revoked state survives confirmation race');
+expect(!ieb_sms_request_enrollment('+15551230101',true), 'new request cannot overwrite revocation state');
 echo getenv('IEB_TEST_LOOPBACK_PORT') ? "PASS: loopback relay + fake provider; no external network\n" : "PASS: WP stubs + real authenticated relay and fake provider, no network\n";

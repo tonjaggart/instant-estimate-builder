@@ -29,7 +29,10 @@ with tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR')) as d:
         else: raise AssertionError('server not ready')
         phone='+12025550101'; event={'event':'event_1','phone':phone,'lead':{'name':'SyntheticPrivateName','phone':'+12025550102','service':'Test'}}
         assert signed('/v1/events',event)[0]==409
-        assert signed('/v1/consent',{'phone':phone,'actor':'admin_1','notice':'notice-v1'})[0]==200
+        assert signed('/v1/consent',{'phone':phone,'actor':'admin_1','notice':'notice-v1'})[0]==403
+        # Bypass the API only to seed a synthetic queue fixture, not to emulate enrollment.
+        seed='require "sms-relay/queue.php"; $c=json_decode(file_get_contents(getenv("IEB_RELAY_CONFIG")),true); $d=new PDO("sqlite:".$c["database"]); $q=new IebSmsQueue($d,hex2bin($c["encryption_key"])); $q->consent("install_123",getenv("IEB_FIXTURE_PHONE"),"fixture","notice-v1",time());'
+        subprocess.run(['php','-r',seed],cwd=root,env=dict(env,IEB_FIXTURE_PHONE=phone),check=True)
         nonce=secrets.token_hex(16); assert signed('/v1/events',event,nonce)[0]==200
         proc.terminate(); proc.wait(timeout=5)
         proc=subprocess.Popen(['php','-d','display_errors=0','-d','log_errors=0','-S',f'127.0.0.1:{port}','-t','sms-relay/public','sms-relay/public/index.php'],cwd=root,env=env,stdout=logfile,stderr=logfile)

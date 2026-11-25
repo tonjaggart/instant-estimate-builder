@@ -31,11 +31,11 @@ The key and each installation secret must be independent 32-byte random values r
 
 Only POST requests with no query string are accepted. Installation requests use `Content-Type: application/json` and headers `X-Installation`, `X-Timestamp`, `X-Nonce`, `X-Signature`. The signature is lowercase hex HMAC-SHA256 using the binary installation key over newline-separated `IEB1`, installation ID, uppercase method, exact path, Unix epoch timestamp, 32-lowercase-hex random nonce, and lowercase SHA-256 hex of the exact raw body; there is no final newline. An authenticated timestamp must be within 300 seconds. Every attempt needs a fresh nonce, including a retry; accepted nonces are persisted atomically through timestamp + 300 seconds. Use a trusted synchronized clock.
 
-* `/v1/consent`: `{ "phone": "+E164", "actor": "admin_id", "notice": "notice_version" }`
+* `/v1/consent`: `{ "phone": "+E164", "actor": "admin_id", "notice": "notice_version" }` — **disabled**, returns 403 for an authenticated well-formed request; a signed installation assertion is not ownership verification.
 * `/v1/revoke`: `{ "phone": "+E164", "actor": "admin_id" }`
 * `/v1/events`: `{ "event": "event_id", "phone": "+E164", "lead": { "name": "...", "phone": "...", "service": "..." } }`
 
-The phone on an event is the opted-in administrator; the lead phone is included in the body. Actor, notice and event IDs are restricted identifiers; consent records are installation-scoped, and global STOP blocks every installation. The API verifies the installation secret, **not the administrator's identity, affirmative consent, phone ownership, or notice contents**. A compromised installation can submit false consent. Do not connect a client or enable sending until authenticated, CSRF-protected per-person enrollment, notice version, provenance, number ownership and revocation have been independently designed, implemented and reviewed. Consent on a stopped number fails with 409; START does not restore it. The queue rejects unconsented, disabled and stopped recipients.
+The phone on an event is the opted-in administrator; the lead phone is included in the body. Actor, notice and event IDs are restricted identifiers; consent records are installation-scoped, and global STOP blocks every installation. The API verifies the installation secret, **not the administrator's identity, affirmative consent, phone ownership, or notice contents**. The unsafe direct-consent endpoint is disabled. The internal queue consent method remains available to trusted local code and tests; it is not an enrollment interface. Existing consent rows are not automatically revoked by this change. Do not connect a client or enable sending until authenticated, CSRF-protected per-person enrollment, notice version, provenance, number ownership and revocation have been independently designed, implemented and reviewed. START does not restore consent. The queue rejects unconsented, disabled and stopped recipients.
 
 A unique `(installation, event, recipient)` and keyed payload hash persist across process restarts. A repeat with identical payload returns `duplicate`; changed payload returns 409. IDs, phone and payload cannot be reused to imply delivery. Requests with invalid authentication/replay return 401. A 200 `queued` is not a provider acceptance or delivery. Ordinary errors and infrastructure failures are generic and omit data. There is no status API or delivery receipt handling.
 
@@ -62,6 +62,7 @@ php tests/sms-relay-stop-order.php
 python3 tests/sms-relay-queue-concurrency.py
 python3 tests/sms-relay-race.py
 php tests/sms-relay-api.php
+php tests/sms-relay-unverified-consent.php
 php tests/sms-relay-webhook.php
 python3 tests/sms-relay-service-http.py
 python3 tests/sms-relay-twilio.py
@@ -71,7 +72,7 @@ php tests/conditional-pricing.php
 php tests/test-email-subject.php
 ```
 
-The new HTTP test uses the actual front controller and a local synthetic SQLite database, restarts the PHP server to test durable nonce/event idempotency, and submits synthetic signed/tampered webhooks. The adapter test runs the actual SDK sender and queue against a loopback fake provider; it never contacts Twilio. The multiprocess race test holds the fake provider in flight and verifies STOP cannot be acknowledged until it finishes, then suppresses the next item. No test proves carrier delivery, real Twilio behavior, a real WordPress client, rate limiting, hosted security, actual consent, an enabled live worker or production performance. Existing local fixture tests remain experimental, not deployment endpoints.
+The real front-controller HTTP test rejects signed unverified consent, then seeds consent directly in its synthetic SQLite fixture to test downstream event/STOP behavior; this is **not** a working opt-in. The older `sms-relay-http.py` exercises a separate test-only router that still accepts synthetic assertions; it is not the production API or proof of enrollment. The adapter test runs the actual SDK sender and queue against a loopback fake provider; it never contacts Twilio. The multiprocess race test holds the fake provider in flight and verifies STOP cannot be acknowledged until it finishes, then suppresses the next item. No test proves carrier delivery, real Twilio behavior, a real WordPress client, rate limiting, hosted security, actual consent, an enabled live worker or production performance. Existing local fixture tests remain experimental, not deployment endpoints.
 
 ## Before any staging integration
 

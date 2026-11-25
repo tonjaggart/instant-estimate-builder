@@ -91,6 +91,7 @@ final class IebSmsVerification {
             $stopped=$this->query('SELECT stopped FROM ieb_sms_suppression WHERE phone_hash=?',[$row['phone_hash']])->fetchColumn();
             if ($current!=='unknown' || !$enabled || $stopped || $now >= (int)$row['expires_at'] || !is_array($data) || !isset($data['phone'],$data['code'])) { $this->query("UPDATE ieb_sms_verifications SET state='cancelled' WHERE installation=? AND request_id=? AND state='unknown'",[$row['installation'],$row['request_id']]); return 'suppressed'; }
             try { $result=$provider($data['phone'],'Taggart Media Group: Your verification code is '.$data['code'].'. Enter it to opt in to estimate alerts. Reply STOP to opt out, HELP for help.'); } catch (Throwable $e) { $result='unknown'; }
+            if (is_array($result)) $result=(($result['state']??null)==='accepted' && is_string($result['sid']??null) && preg_match('/\ASM[0-9a-fA-F]{32}\z/D',$result['sid'])) ? 'accepted' : 'unknown';
             if ($result==='accepted') $this->query("UPDATE ieb_sms_verifications SET state='accepted' WHERE installation=? AND request_id=? AND state='unknown'",[$row['installation'],$row['request_id']]);
             return $result==='accepted' ? 'accepted' : 'unknown';
         });

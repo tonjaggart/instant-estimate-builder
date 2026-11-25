@@ -39,6 +39,8 @@ final class IebSmsQueue {
         $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, installation TEXT NOT NULL, event TEXT NOT NULL, phone_hash TEXT NOT NULL, payload_hash TEXT NOT NULL, ciphertext TEXT NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, due_at INTEGER NOT NULL, quota_month TEXT, UNIQUE(installation,event,phone_hash))');
         $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_consent_epochs (installation TEXT NOT NULL, phone_hash TEXT NOT NULL, epoch TEXT NOT NULL, PRIMARY KEY(installation,phone_hash))');
         $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_message_epochs (message_id INTEGER PRIMARY KEY, epoch TEXT NOT NULL)');
+        $this->db->exec("CREATE TABLE IF NOT EXISTS ieb_sms_delivery (message_id INTEGER PRIMARY KEY, sid TEXT NOT NULL UNIQUE, status TEXT NOT NULL, created_at INTEGER NOT NULL, next_poll INTEGER NOT NULL, lookup_failures INTEGER NOT NULL DEFAULT 0)");
+        $this->db->exec('CREATE INDEX IF NOT EXISTS ieb_sms_delivery_due ON ieb_sms_delivery(status,next_poll)');
         $columns=$this->db->query('PRAGMA table_info(ieb_sms_messages)')->fetchAll(PDO::FETCH_ASSOC);
         if (!in_array('expires_at',array_column($columns,'name'),true)) {
             // Legacy queued ciphertext has no trustworthy creation time: fail closed.
@@ -218,6 +220,12 @@ final class IebSmsQueue {
                 $this->query("UPDATE ieb_sms_messages SET state='failed',quota_month=NULL,ciphertext='' WHERE id=? AND state='unknown'",[$row['id']]); return 'failed';
             }
             try { $result=$provider($data['recipient'],$message); } catch (Throwable $e) { $result='unknown'; }
+            if (is_array($result)) {
+                if (($result['state']??null)==='accepted' && is_string($result['sid']??null) && preg_match('/\ASM[0-9a-fA-F]{32}\z/D',$result['sid'])) {
+                    $this->query("INSERT INTO ieb_sms_delivery (message_id,sid,status,created_at,next_poll) VALUES (?,?,'accepted',?,?)",[$row['id'],$result['sid'],$now,$now+300]);
+                    $result='accepted';
+                } else $result='unknown';
+            }
             if (!in_array($result,['accepted','retryable','unknown'],true)) $result='unknown';
             if ($result==='accepted') $this->query("UPDATE ieb_sms_messages SET state='accepted' WHERE id=? AND state='unknown'",[$row['id']]);
             if ($result==='retryable') {

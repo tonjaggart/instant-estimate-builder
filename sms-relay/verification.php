@@ -16,16 +16,25 @@ final class IebSmsVerification {
         $hash=hash_hmac('sha256',$phone,$this->hashKey);
         $this->atomic(function() use($id,$requestId,$phone,$actor,$notice,$hash,$now) {
             if ($this->query('SELECT 1 FROM ieb_sms_verification_revocations WHERE installation=? AND request_id=?',[$id,$requestId])->fetchColumn()) return;
-            $old=$this->query('SELECT phone_hash,actor,notice FROM ieb_sms_verifications WHERE installation=? AND request_id=?',[$id,$requestId])->fetch(PDO::FETCH_ASSOC);
-            if ($old) { if (!hash_equals($old['phone_hash'],$hash) || $old['actor']!==$actor || $old['notice']!==$notice) throw new DomainException('Conflict'); return; }
+            $old=$this->query('SELECT phone_hash,actor,notice,request_fingerprint FROM ieb_sms_verifications WHERE installation=? AND request_id=?',[$id,$requestId])->fetch(PDO::FETCH_ASSOC);
+            if ($old) {
+                if ($old['request_fingerprint']!==null) {
+                    $fingerprint=hash_hmac('sha256',json_encode([$hash,$actor,$notice],JSON_THROW_ON_ERROR),$this->hashKey);
+                    if (!hash_equals($old['request_fingerprint'],$fingerprint)) throw new DomainException('Conflict');
+                } elseif (!hash_equals($old['phone_hash'],$hash) || $old['actor']!==$actor || $old['notice']!==$notice) throw new DomainException('Conflict');
+                return;
+            }
             $countPhone=(int)$this->query('SELECT count(*) FROM ieb_sms_verifications WHERE phone_hash=? AND created_at>?',[$hash,$now-3600])->fetchColumn();
             $countInstall=(int)$this->query('SELECT count(*) FROM ieb_sms_verifications WHERE installation=? AND created_at>?',[$id,$now-3600])->fetchColumn();
+            $countGlobal=(int)$this->query('SELECT count(*) FROM ieb_sms_verifications WHERE created_at>?',[$now-3600])->fetchColumn();
             $enabled=(bool)$this->query('SELECT 1 FROM ieb_sms_installations WHERE id=? AND enabled=1',[$id])->fetchColumn();
             $stopped=(bool)$this->query('SELECT stopped FROM ieb_sms_suppression WHERE phone_hash=?',[$hash])->fetchColumn();
-            $state=(!$enabled || $stopped || $countPhone>=3 || $countInstall>=20) ? 'blocked' : 'queued';
+            // Reject before inserting: blocked requests must not create unlimited rows.
+            if (!$enabled || $stopped || $countPhone>=3 || $countInstall>=20 || $countGlobal>=200) return;
+            $state='queued';
             $code=str_pad((string)random_int(0,999999),6,'0',STR_PAD_LEFT); $digest=$this->digest($id,$requestId,$code); $cipher='';
             if ($state==='queued') { $nonce=random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES); $cipher=base64_encode($nonce.sodium_crypto_secretbox(json_encode(['phone'=>$phone,'code'=>$code],JSON_THROW_ON_ERROR),$nonce,$this->key)); }
-            $this->query('INSERT INTO ieb_sms_verifications VALUES (?,?,?,?,?,?,?,?,0,?,?)',[$id,$requestId,$hash,$actor,$notice,$digest,$cipher,$state,$now,$now+600]);
+            $this->query('INSERT INTO ieb_sms_verifications (installation,request_id,phone_hash,actor,notice,code_hash,ciphertext,state,attempts,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,0,?,?)',[$id,$requestId,$hash,$actor,$notice,$digest,$cipher,$state,$now,$now+600]);
         });
     }
     function confirm(string $id,string $requestId,string $code,int $now): bool {
@@ -56,11 +65,21 @@ final class IebSmsVerification {
     /** Claim as uncertain and erase queued ciphertext before contacting the provider. */
     function dispatch(callable $provider,int $now): string {
         $row=$this->atomic(function() use($now) {
-            $this->query("UPDATE ieb_sms_verifications SET state='expired',ciphertext='' WHERE state='queued' AND expires_at<=?",[$now]);
-            $row=$this->query("SELECT * FROM ieb_sms_verifications WHERE state='queued' ORDER BY created_at,rowid LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $this->query("UPDATE ieb_sms_verifications SET state='expired',ciphertext='' WHERE rowid IN (SELECT rowid FROM ieb_sms_verifications WHERE state='queued' AND expires_at<=? ORDER BY expires_at,rowid LIMIT 100)",[$now]);
+            $row=$this->query("SELECT * FROM ieb_sms_verifications WHERE state='queued' AND expires_at>? ORDER BY created_at,rowid LIMIT 1",[$now])->fetch(PDO::FETCH_ASSOC);
             if (!$row) return false;
+            $month=gmdate('Y-m',$now);
+            $used=(int)$this->query('SELECT COUNT(*) FROM ieb_sms_verification_budget WHERE month=? AND installation=?',[$month,$row['installation']])->fetchColumn();
+            $global=(int)$this->query('SELECT COUNT(*) FROM ieb_sms_verification_budget WHERE month=?',[$month])->fetchColumn();
+            if ($used>=20 || $global>=200) {
+                $this->query("UPDATE ieb_sms_verifications SET state='capped',ciphertext='' WHERE installation=? AND request_id=?",[$row['installation'],$row['request_id']]);
+                return 'capped';
+            }
+            // Reserve before the provider call; a crash or cancellation cannot refund uncertainty.
+            $this->query('INSERT INTO ieb_sms_verification_budget (installation,request_id,month) VALUES (?,?,?)',[$row['installation'],$row['request_id'],$month]);
             $this->query("UPDATE ieb_sms_verifications SET state='unknown',ciphertext='' WHERE installation=? AND request_id=?",[$row['installation'],$row['request_id']]); return $row;
         });
+        if ($row==='capped') return 'capped';
         if (!$row) return 'empty';
         $raw=base64_decode($row['ciphertext'],true);
         if ($raw===false || strlen($raw)<SODIUM_CRYPTO_SECRETBOX_NONCEBYTES+SODIUM_CRYPTO_SECRETBOX_MACBYTES) return 'unknown';

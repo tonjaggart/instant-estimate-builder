@@ -25,6 +25,6 @@ $r6=$fresh('+15550000108'); $v->request($a,$r6['request_id'],$r6['phone'],'admin
 $q->configureInstallation('install_c',10,true);
 for ($i=0;$i<21;$i++) $v->request('install_c',bin2hex(random_bytes(16)),sprintf('+15550002%03d',$i),'admin_1','admin-sms-v1',true,$now);
 $counts=$db->query("SELECT state,count(*) AS n FROM ieb_sms_verifications WHERE installation='install_c' GROUP BY state")->fetchAll(PDO::FETCH_KEY_PAIR);
-ckverify((int)$counts['queued']===20 && (int)$counts['blocked']===1,'installation rate limit');
+ckverify((int)$counts['queued']===20 && !isset($counts['blocked']),'installation rate limit must not store blocked requests');
 try { $v->request($a,$r6['request_id'],'+15550000109','admin_1','admin-sms-v1',true,$now); throw new RuntimeException('changed idempotent request accepted'); } catch (DomainException $e) {}
 echo "PASS: verification opt-in, isolation, idempotency, STOP and secrecy\n";

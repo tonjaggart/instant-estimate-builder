@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR')) as d:
         assert all(status==202 for status,_ in out)
         with sqlite3.connect(db) as conn:
             rows=conn.execute("SELECT state,count(*) FROM ieb_sms_verifications WHERE phone_hash=(SELECT phone_hash FROM ieb_sms_verifications WHERE request_id=?) GROUP BY state",(requests[0]['request_id'],)).fetchall()
-            assert dict(rows)=={'blocked':9,'queued':3},rows
+            assert dict(rows)=={'queued':3},rows  # Rejected requests do not grow storage.
             raw=' '.join(map(str,conn.execute('SELECT * FROM ieb_sms_verifications').fetchall())); assert phone not in raw and code not in raw
         provider.shutdown(); provider.server_close()
         for log in logs:

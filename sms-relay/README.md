@@ -62,18 +62,31 @@ The client is inert unless three server-side constants are provisioned: `IEB_SMS
 
 Each privileged administrator must enroll their own number through an unchecked checkbox and confirm the code. A 202 request is not proof of delivery, and the WordPress verified state does not reflect later relay STOP or delivery status. On opt-out, local dispatch stops first; if the relay cannot acknowledge revocation, retry opt-out and contact support or reply STOP. Previously accepted relay jobs cannot be recalled when the relay is unreachable. User demotion/deletion does not yet reliably revoke relay consent or cancel already queued work: this is a release blocker. Legacy email-to-carrier settings and their existing sender are separate and are not migrated or disabled by this code; disabling the relay worker does not disable that path. Isolated testing must independently intercept/block WordPress mail, the relay workers, Twilio automatic replies and webhook HELP; do not configure a live sender or webhook.
 
-Lead alerts are placed in protected lead metadata as a durable pending outbox, and a WP-Cron task sends only name, phone and form title. Transient errors are retried with stable event payloads, fresh HMAC nonces and a paginated hourly recovery sweep; relay idempotency prevents a duplicate event from being sent twice. HTTP acceptance does not prove delivery. WP-Cron depends on site traffic or a separately configured runner. Retention and data minimization are still missing for both outboxes, including permanently failed or unscheduled jobs and terminal relay ciphertext. Quota is enforced at dispatch rather than admission, backlog age is not bounded, and message caps count attempts rather than billable SMS segments. These are release blockers, not safe operational caps. Backups and logs may retain data; do not log bodies, codes, signatures or secrets.
+Lead alerts are placed in protected lead metadata as a durable pending outbox, and a WP-Cron task sends only name, phone and form title. Transient errors are retried with stable event payloads, fresh HMAC nonces and a paginated hourly recovery sweep; relay idempotency prevents a duplicate event from being sent twice. HTTP acceptance does not prove delivery. WP-Cron depends on site traffic or a separately configured runner. WordPress outbox retention and data minimization remain missing. Relay retention is only partially implemented as described below. These are release blockers. Backups and logs may retain data; do not log bodies, codes, signatures or secrets.
 
 Tests include WordPress API stubs and synthetic data: `php tests/wp-sms-client.php` and `python3 tests/wp-sms-loopback.py`. The latter translates the fixed test hostname to a loopback-only HTTP front controller in the **test transport only** and uses an injected fake provider; the production client has no HTTP or loopback exception. `tests/wp-sms-real-core.php` and `tests/wp-sms-real-race.py` additionally exercise a separately provisioned disposable WordPress/MySQL fixture with HTTP and mail intercepted. They do not establish safety of a live site, its object cache or production load, TLS, browser forms or delivery. Review remains mandatory. The preview branch separately edits the Notifications text panel and must be reconciled intentionally; it is not automatically merged here.
 
 ## Local verification
 
+Experimental offline safeguards: alerts use a conservative single-segment limit (160 GSM septets, including escape characters, or 70 UTF-16 units for other text); some GSM-compatible non-ASCII text is rejected conservatively. Claimed alerts erase ciphertext before the provider call and restore it only after a definite retryable outcome. Admission limits queued/retry alerts to 100 per installation and 1,000 globally; new alerts expire after one hour. Migration gives legacy alerts an expiry of zero, so they cannot be sent. Verification admission silently rejects before insert after 3 per phone, 20 per installation or 200 globally per hour; verification sends reserve a preliminary UTC-month budget of 20 per installation and 200 globally before the call, including uncertain outcomes. These are not approved financial limits. Stop and drain all old workers and API processes before migration and keep them stopped until the new schema and code are installed: migration expires legacy queued verifications and charges all legacy verification rows to the migration month because their actual send times are unknown. Migration, concurrency, and financial assumptions require independent review.
+
+`php sms-relay/maintenance.php` runs one bounded pass using `IEB_RELAY_CONFIG` and cannot send SMS; it also works with sending disabled. It is **not automatically scheduled**. An operator would need a monitored, frequent external cron/systemd timer and backlog monitoring; even then no strict maximum age is guaranteed under overload or downtime. One call processes up to 100 expired queued alerts, 100 expired uncertain claims, 100 terminal ciphertexts and 100 expired verification records. The latter lose their phone hash, actor, notice, code hash and ciphertext after at least an hour while a keyed request fingerprint is retained to prevent replay. Alert idempotency keys, audit/consent/suppression records, verification tombstones and budget rows remain; the WordPress outbox is unaffected. These gaps mean PII and storage are not comprehensively bounded. Retention of idempotency records needs an explicitly approved TTL and acknowledgement that replays can be accepted after expiry; do not delete consent, suppression or revocation evidence without an approved policy. Deletion from SQLite does not ensure erasure from free pages, WAL/journals, backups, logs or providers. Do not deploy or send; independently review migration, quotas, retention, in-flight races and data deletion first. **This is not release approval.**
+
 From the repository root, after installing the locked Composer dependencies:
 
 ```sh
 php tests/sms-relay-auth.php
+php tests/sms-relay-admission-fences.php
+php tests/sms-relay-maintenance.php
 python3 tests/sms-relay-auth-concurrency.py
 php tests/sms-relay-queue.php
+php tests/sms-relay-bounds.php
+php tests/sms-relay-bounds-concurrency.php
+php tests/sms-relay-migration.php
+php tests/sms-relay-retention.php
+php tests/sms-relay-single-segment.php
+php tests/sms-relay-terminal-payload.php
+php tests/sms-relay-verification-budget.php
 php tests/sms-relay-security-regressions.php
 php tests/sms-relay-consent-audit.php
 php tests/sms-relay-stop-order.php

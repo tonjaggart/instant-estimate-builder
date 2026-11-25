@@ -12,9 +12,10 @@ final class IebSmsVerification {
     private function validId(string $s): bool { return (bool)preg_match('/\A[a-zA-Z0-9_-]{1,64}\z/D',$s); }
     private function digest(string $id,string $requestId,string $code): string { return hash_hmac('sha256',"ieb-verification-v1\n$id\n$requestId\n$code",$this->hashKey); }
     function request(string $id,string $requestId,string $phone,string $actor,string $notice,bool $optIn,int $now): void {
-        if (!$this->validId($id) || !$this->validId($actor) || !preg_match('/\A[0-9a-f]{32}\z/D',$requestId) || !preg_match('/\A\+[1-9][0-9]{7,14}\z/D',$phone) || $notice!=='admin-sms-v1' || !$optIn) throw new InvalidArgumentException('Invalid request');
+        if (!$this->validId($id) || !$this->validId($actor) || !preg_match('/\A[0-9a-f]{32}\z/D',$requestId) || !preg_match('/\A\+[1-9][0-9]{7,14}\z/D',$phone) || !in_array($notice,['admin-sms-v1','admin-sms-v2'],true) || !$optIn) throw new InvalidArgumentException('Invalid request');
         $hash=hash_hmac('sha256',$phone,$this->hashKey);
         $this->atomic(function() use($id,$requestId,$phone,$actor,$notice,$hash,$now) {
+            if ($this->query('SELECT 1 FROM ieb_sms_verification_revocations WHERE installation=? AND request_id=?',[$id,$requestId])->fetchColumn()) return;
             $old=$this->query('SELECT phone_hash,actor,notice FROM ieb_sms_verifications WHERE installation=? AND request_id=?',[$id,$requestId])->fetch(PDO::FETCH_ASSOC);
             if ($old) { if (!hash_equals($old['phone_hash'],$hash) || $old['actor']!==$actor || $old['notice']!==$notice) throw new DomainException('Conflict'); return; }
             $countPhone=(int)$this->query('SELECT count(*) FROM ieb_sms_verifications WHERE phone_hash=? AND created_at>?',[$hash,$now-3600])->fetchColumn();

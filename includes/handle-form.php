@@ -550,6 +550,9 @@ function hgm_submit_quote_form() {
             }
         }
     }
+    // Keep relay scheduling separate from the existing customer and admin emails.
+    // A failed queue or scheduler must never change the customer's submission result.
+    try { ieb_sms_queue_lead($lead_id); } catch (Throwable $e) { /* fail closed */ }
     wp_send_json_success([
         'message' => 'Estimate submitted successfully'
     ]);

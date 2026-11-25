@@ -66,6 +66,7 @@ require_once HGM_PLUGIN_PATH . 'includes/admin-ui.php';
 require_once HGM_PLUGIN_PATH . 'includes/shortcode-render.php';
 require_once HGM_PLUGIN_PATH . 'includes/email-settings.php';
 require_once HGM_PLUGIN_PATH . 'includes/admin-leads.php';
+require_once HGM_PLUGIN_PATH . 'includes/sms-client.php';
 require_once HGM_PLUGIN_PATH . 'includes/handle-form.php';
 require_once HGM_PLUGIN_PATH . 'includes/notifications-settings.php';
 require_once HGM_PLUGIN_PATH . 'includes/dashboard.php';

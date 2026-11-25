@@ -70,6 +70,7 @@ function hgm_render_notifications_settings_page() {
     }
 
     if ($active_tab === 'text') {
+        ieb_sms_render_settings();
         $notification_options = get_option('hgm_notification_settings', []);
         $saved_recipients = $notification_options['sms_recipients'] ?? [];
 

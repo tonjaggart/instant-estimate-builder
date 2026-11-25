@@ -20,6 +20,8 @@ final class IebSmsQueue {
         $this->db->exec('CREATE INDEX IF NOT EXISTS ieb_sms_verification_phone_time ON ieb_sms_verifications(phone_hash,created_at)');
         $this->db->exec('CREATE INDEX IF NOT EXISTS ieb_sms_verification_installation_time ON ieb_sms_verifications(installation,created_at)');
         $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, installation TEXT NOT NULL, event TEXT NOT NULL, phone_hash TEXT NOT NULL, payload_hash TEXT NOT NULL, ciphertext TEXT NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, due_at INTEGER NOT NULL, quota_month TEXT, UNIQUE(installation,event,phone_hash))');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_consent_epochs (installation TEXT NOT NULL, phone_hash TEXT NOT NULL, epoch TEXT NOT NULL, PRIMARY KEY(installation,phone_hash))');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_message_epochs (message_id INTEGER PRIMARY KEY, epoch TEXT NOT NULL)');
     }
     private function checkId($id): void { if (!is_string($id) || !preg_match('/\A[a-zA-Z0-9_-]{1,64}\z/D', $id)) throw new DomainException('Invalid identifier'); }
     private function phash($phone): string {
@@ -42,6 +44,7 @@ final class IebSmsQueue {
             if (!$this->query('SELECT id FROM ieb_sms_installations WHERE id=?',[$id])->fetchColumn()) throw new DomainException('Unknown installation');
             if ($this->query('SELECT stopped FROM ieb_sms_suppression WHERE phone_hash=?',[$hash])->fetchColumn()) return false;
             $this->query('INSERT INTO ieb_sms_consents VALUES (?,?,?,?,?,1) ON CONFLICT(installation,phone_hash) DO UPDATE SET actor=excluded.actor, notice=excluded.notice, consented_at=excluded.consented_at, active=1',[$id,$hash,$actor,$notice,$now]);
+            $this->query('INSERT INTO ieb_sms_consent_epochs VALUES (?,?,?) ON CONFLICT(installation,phone_hash) DO UPDATE SET epoch=excluded.epoch',[$id,$hash,bin2hex(random_bytes(16))]);
             $this->query('INSERT INTO ieb_sms_consent_audit (installation,phone_hash,actor,notice,action,occurred_at) VALUES (?,?,?,?,?,?)',[$id,$hash,$actor,$notice,'consent',$now]);
             return true;
         });
@@ -52,7 +55,9 @@ final class IebSmsQueue {
         $this->atomic(function() use($id,$hash,$actor,$now,$requestId) {
             if ($requestId!==null) $this->query('INSERT OR IGNORE INTO ieb_sms_verification_revocations (installation,request_id) VALUES (?,?)',[$id,$requestId]);
             $this->query('UPDATE ieb_sms_consents SET active=0 WHERE installation=? AND phone_hash=?',[$id,$hash]);
-            $this->query("UPDATE ieb_sms_verifications SET state='cancelled',ciphertext='' WHERE installation=? AND phone_hash=? AND state IN ('queued','unknown','accepted')",[$id,$hash]);
+            $this->query('DELETE FROM ieb_sms_consent_epochs WHERE installation=? AND phone_hash=?',[$id,$hash]);
+            $this->query("UPDATE ieb_sms_messages SET state='suppressed',ciphertext='' WHERE installation=? AND phone_hash=? AND state IN ('queued','retry')",[$id,$hash]);
+            $this->query("UPDATE ieb_sms_verifications SET state='cancelled',ciphertext='' WHERE installation=? AND phone_hash=? AND state IN ('queued','unknown','accepted','verified')",[$id,$hash]);
             $this->query('INSERT INTO ieb_sms_consent_audit (installation,phone_hash,actor,notice,action,occurred_at) VALUES (?,?,?,?,?,?)',[$id,$hash,$actor,'','revoke',$now]);
         });
     }
@@ -61,7 +66,9 @@ final class IebSmsQueue {
         $this->atomic(function() use($hash,$now) {
             $this->query('INSERT INTO ieb_sms_suppression VALUES (?,1,?) ON CONFLICT(phone_hash) DO UPDATE SET stopped=1,changed_at=excluded.changed_at',[$hash,$now]);
             $this->query('UPDATE ieb_sms_consents SET active=0 WHERE phone_hash=?',[$hash]);
-            $this->query("UPDATE ieb_sms_verifications SET state='cancelled',ciphertext='' WHERE phone_hash=? AND state IN ('queued','unknown','accepted')",[$hash]);
+            $this->query('DELETE FROM ieb_sms_consent_epochs WHERE phone_hash=?',[$hash]);
+            $this->query("UPDATE ieb_sms_messages SET state='suppressed',ciphertext='' WHERE phone_hash=? AND state IN ('queued','retry')",[$hash]);
+            $this->query("UPDATE ieb_sms_verifications SET state='cancelled',ciphertext='' WHERE phone_hash=? AND state IN ('queued','unknown','accepted','verified')",[$hash]);
             $this->query('INSERT INTO ieb_sms_consent_audit (installation,phone_hash,actor,notice,action,occurred_at) VALUES (?,?,?,?,?,?)',['',$hash,'provider','','stop',$now]);
         });
     }
@@ -74,7 +81,9 @@ final class IebSmsQueue {
             if (!$insert->rowCount()) return;
             $this->query('INSERT INTO ieb_sms_suppression VALUES (?,1,?) ON CONFLICT(phone_hash) DO UPDATE SET stopped=1,changed_at=excluded.changed_at',[$hash,$now]);
             $this->query('UPDATE ieb_sms_consents SET active=0 WHERE phone_hash=?',[$hash]);
-            $this->query("UPDATE ieb_sms_verifications SET state='cancelled',ciphertext='' WHERE phone_hash=? AND state IN ('queued','unknown','accepted')",[$hash]);
+            $this->query('DELETE FROM ieb_sms_consent_epochs WHERE phone_hash=?',[$hash]);
+            $this->query("UPDATE ieb_sms_messages SET state='suppressed',ciphertext='' WHERE phone_hash=? AND state IN ('queued','retry')",[$hash]);
+            $this->query("UPDATE ieb_sms_verifications SET state='cancelled',ciphertext='' WHERE phone_hash=? AND state IN ('queued','unknown','accepted','verified')",[$hash]);
             $this->query('INSERT INTO ieb_sms_consent_audit (installation,phone_hash,actor,notice,action,occurred_at) VALUES (?,?,?,?,?,?)',['',$hash,'provider','','stop',$now]);
         });
     }
@@ -85,19 +94,28 @@ final class IebSmsQueue {
     private function allowed($id,$hash): bool {
         return (bool)$this->query('SELECT 1 FROM ieb_sms_installations i JOIN ieb_sms_consents c ON c.installation=i.id LEFT JOIN ieb_sms_suppression s ON s.phone_hash=c.phone_hash WHERE i.id=? AND c.phone_hash=? AND i.enabled=1 AND c.active=1 AND COALESCE(s.stopped,0)=0',[$id,$hash])->fetchColumn();
     }
-    function enqueue(string $id, string $event, string $phone, array $lead, int $now): string {
+    private function messageAllowed($row): bool {
+        if (!$this->allowed($row['installation'],$row['phone_hash'])) return false;
+        return (bool)$this->query('SELECT 1 FROM ieb_sms_message_epochs m JOIN ieb_sms_consent_epochs c ON c.epoch=m.epoch WHERE m.message_id=? AND c.installation=? AND c.phone_hash=?',[$row['id'],$row['installation'],$row['phone_hash']])->fetchColumn();
+    }
+    function enqueue(string $id, string $event, string $phone, array $lead, int $now, ?string $requestId=null): string {
         $this->checkId($id); $this->checkId($event); $hash=$this->phash($phone);
+        if ($requestId!==null && !preg_match('/\A[0-9a-f]{32}\z/D',$requestId)) throw new InvalidArgumentException('Invalid request id');
         if (array_keys($lead) !== ['name','phone','service']) throw new DomainException('Invalid lead');
         foreach ($lead as $value) if (!is_string($value) || trim($value)==='' || strlen($value)>160 || preg_match('/[\x00-\x1f\x7f]/', $value)) throw new DomainException('Invalid lead');
         $payload=json_encode(['recipient'=>$phone,'lead'=>$lead], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         $payloadHash=hash_hmac('sha256',$payload,$this->hashKey);
-        return $this->atomic(function() use ($id,$event,$hash,$payload,$payloadHash,$now) {
+        return $this->atomic(function() use ($id,$event,$hash,$payload,$payloadHash,$now,$requestId) {
+            $epoch=$this->query('SELECT epoch FROM ieb_sms_consent_epochs WHERE installation=? AND phone_hash=?',[$id,$hash])->fetchColumn();
+            if (!$epoch || ($requestId!==null && !hash_equals($epoch,$requestId))) throw new DomainException('Consent requires re-verification');
             $existing=$this->query('SELECT payload_hash FROM ieb_sms_messages WHERE installation=? AND event=? AND phone_hash=?',[$id,$event,$hash])->fetchColumn();
             if ($existing !== false) { if (!hash_equals($existing,$payloadHash)) throw new DomainException('Event conflict'); return 'duplicate'; }
             if (!$this->allowed($id,$hash)) throw new DomainException('Not allowed');
+
             $nonce=random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
             $cipher=base64_encode($nonce.sodium_crypto_secretbox($payload,$nonce,$this->key));
             $this->query('INSERT INTO ieb_sms_messages (installation,event,phone_hash,payload_hash,ciphertext,state,due_at) VALUES (?,?,?,?,?,\'queued\',?)',[$id,$event,$hash,$payloadHash,$cipher,$now]);
+            $this->query('INSERT INTO ieb_sms_message_epochs VALUES (?,?)',[(int)$this->db->lastInsertId(),$epoch]);
             return 'queued';
         });
     }
@@ -106,8 +124,8 @@ final class IebSmsQueue {
         $claim=$this->atomic(function() use($now) {
             $row=$this->query("SELECT * FROM ieb_sms_messages WHERE state IN ('queued','retry') AND due_at<=? ORDER BY id LIMIT 1",[$now])->fetch(PDO::FETCH_ASSOC);
             if (!$row) return ['result'=>'empty'];
-            if (!$this->allowed($row['installation'],$row['phone_hash'])) {
-                $this->query("UPDATE ieb_sms_messages SET state='suppressed' WHERE id=?",[$row['id']]); return ['result'=>'suppressed'];
+            if (!$this->messageAllowed($row)) {
+                $this->query("UPDATE ieb_sms_messages SET state='suppressed',ciphertext='' WHERE id=?",[$row['id']]); return ['result'=>'suppressed'];
             }
             $month=gmdate('Y-m',$now);
             $cap=(int)$this->query('SELECT monthly_cap FROM ieb_sms_installations WHERE id=?',[$row['installation']])->fetchColumn();
@@ -128,8 +146,8 @@ final class IebSmsQueue {
         // revoke and entitlement updates. The earlier committed unknown claim
         // survives a crash or rollback of this second transaction.
         return $this->atomic(function() use ($data,$row,$provider,$now) {
-            if (!is_array($data) || !$this->allowed($row['installation'],$row['phone_hash'])) {
-                $this->query("UPDATE ieb_sms_messages SET state='suppressed',quota_month=NULL WHERE id=? AND state='unknown'",[$row['id']]); return 'suppressed';
+            if (!is_array($data) || !$this->messageAllowed($row)) {
+                $this->query("UPDATE ieb_sms_messages SET state='suppressed',quota_month=NULL,ciphertext='' WHERE id=? AND state='unknown'",[$row['id']]); return 'suppressed';
             }
             $lead=$data['lead']; $message='Taggart Media Group - New estimate: '.$lead['name'].' | '.$lead['phone'].' | '.$lead['service'];
             try { $result=$provider($data['recipient'],$message); } catch (Throwable $e) { $result='unknown'; }

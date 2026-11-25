@@ -102,7 +102,7 @@ function ieb_sms_dispatch_lead($lead_id,$uid,$attempt=0) {
         if (!user_can($uid,defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options') || !is_array($state) || ($state['status'] ?? '')!=='verified' || ($state['request_id'] ?? '')!==($job['request_id'] ?? null) || ($state['phone'] ?? '')!==($job['phone'] ?? null)) {
             delete_post_meta($lead_id,'_ieb_sms_pending',wp_slash($job)); continue;
         }
-        $status=ieb_sms_post('/v1/events',['event'=>$job['event'],'phone'=>$job['phone'],'lead'=>$job['lead']]);
+        $status=ieb_sms_post('/v1/events',['event'=>$job['event'],'phone'=>$job['phone'],'lead'=>$job['lead'],'request_id'=>$job['request_id']]);
         if ($status===0 || $status===429 || $status>=500) {
             if ($attempt<7) wp_schedule_single_event(time()+min(3600,60*(2**$attempt)),'ieb_sms_dispatch_lead',[(int)$lead_id,(int)$uid,(int)$attempt+1]);
         } else {

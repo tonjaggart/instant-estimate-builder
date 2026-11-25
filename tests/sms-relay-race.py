@@ -18,5 +18,5 @@ with tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR')) as tmp:
     (pathlib.Path(tmp)/'release').touch()
     assert send.communicate(timeout=10)[0]=='accepted' and send.returncode==0
     assert stop.communicate(timeout=10)[0]=='stopped' and stop.returncode==0
-    assert run('send').stdout=='suppressed'
+    assert run('send').stdout=='empty'
 print('PASS: STOP acknowledgment serializes with in-flight fake send and suppresses subsequent messages')

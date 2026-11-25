@@ -32,13 +32,23 @@ final class IebSmsVerification {
         if (!$this->validId($id) || !preg_match('/\A[0-9a-f]{32}\z/D',$requestId) || !preg_match('/\A[0-9]{6}\z/D',$code)) throw new InvalidArgumentException('Invalid request');
         return $this->atomic(function() use($id,$requestId,$code,$now) {
             $row=$this->query('SELECT * FROM ieb_sms_verifications WHERE installation=? AND request_id=?',[$id,$requestId])->fetch(PDO::FETCH_ASSOC);
-            if (!$row || !in_array($row['state'],['unknown','accepted'],true) || $now >= (int)$row['expires_at'] || (int)$row['attempts']>=5) return false;
+            if (!$row || !in_array($row['state'],['unknown','accepted','verified'],true) || $now >= (int)$row['expires_at'] || (int)$row['attempts']>=5) return false;
             $enabled=$this->query('SELECT 1 FROM ieb_sms_installations WHERE id=? AND enabled=1',[$id])->fetchColumn();
             $stopped=$this->query('SELECT stopped FROM ieb_sms_suppression WHERE phone_hash=?',[$row['phone_hash']])->fetchColumn();
             if (!$enabled || $stopped) return false;
+            if ($row['state']==='verified') {
+                $current=$this->query('SELECT c.epoch FROM ieb_sms_consent_epochs c JOIN ieb_sms_consents s ON s.installation=c.installation AND s.phone_hash=c.phone_hash WHERE c.installation=? AND c.phone_hash=? AND s.active=1',[$id,$row['phone_hash']])->fetchColumn();
+                if ($current!==$requestId) return false;
+                if (!hash_equals($row['code_hash'],$this->digest($id,$requestId,$code))) {
+                    $this->query('UPDATE ieb_sms_verifications SET attempts=attempts+1 WHERE installation=? AND request_id=?',[$id,$requestId]);
+                    return false;
+                }
+                return true;
+            }
             if (!hash_equals($row['code_hash'],$this->digest($id,$requestId,$code))) { $this->query('UPDATE ieb_sms_verifications SET attempts=attempts+1 WHERE installation=? AND request_id=?',[$id,$requestId]); return false; }
             $this->query("UPDATE ieb_sms_verifications SET state='verified',ciphertext='' WHERE installation=? AND request_id=?",[$id,$requestId]);
             $this->query('INSERT INTO ieb_sms_consents VALUES (?,?,?,?,?,1) ON CONFLICT(installation,phone_hash) DO UPDATE SET actor=excluded.actor,notice=excluded.notice,consented_at=excluded.consented_at,active=1',[$id,$row['phone_hash'],$row['actor'],$row['notice'],$now]);
+            $this->query('INSERT INTO ieb_sms_consent_epochs VALUES (?,?,?) ON CONFLICT(installation,phone_hash) DO UPDATE SET epoch=excluded.epoch',[$id,$row['phone_hash'],$requestId]);
             $this->query('INSERT INTO ieb_sms_consent_audit (installation,phone_hash,actor,notice,action,occurred_at) VALUES (?,?,?,?,?,?)',[$id,$row['phone_hash'],$row['actor'],$row['notice'],'verified-consent',$now]);
             return true;
         });

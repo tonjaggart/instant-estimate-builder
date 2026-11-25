@@ -12,7 +12,7 @@ $q->revoke('install_123',$phone,'admin_a',1700000002);
 try { $q->enqueue('install_123','lead_a',$phone,$lead,1700000003); throw new RuntimeException('Revoked consent accepted'); } catch (DomainException $e) {}
 expect_audit($q->enqueue('install_456','lead_a',$phone,$lead,1700000003)==='queued','Cross-install revoke');
 $q->stop($phone,1700000004);
-expect_audit($q->dispatchOne(fn() => 'accepted',1700000005)==='suppressed','Global STOP');
+expect_audit($q->dispatchOne(fn() => 'accepted',1700000005)==='empty','Global STOP');
 $rows=$db->query('SELECT installation,actor,notice,action,occurred_at FROM ieb_sms_consent_audit ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
 expect_audit(count($rows)===5, 'Consent history lost');
 expect_audit($rows[0]['notice']==='notice-v1' && $rows[1]['notice']==='notice-v2' && $rows[3]['action']==='revoke' && $rows[4]['action']==='stop', 'Consent audit wrong');

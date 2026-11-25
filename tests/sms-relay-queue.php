@@ -22,7 +22,7 @@ check_queue($q->dispatchOne($send, 1700000005) === 'empty' && count($calls) === 
 $q->enqueue('install_123', 'lead_2', $phone, $lead, 1700000006);
 check_queue($q->dispatchOne(fn() => 'retryable', 1700000007) === 'retryable', 'retryable result');
 $q->stop($phone, 1700000008);
-check_queue($q->dispatchOne($send, 1700001000) === 'suppressed' && count($calls) === 1, 'STOP did not suppress retry');
+check_queue($q->dispatchOne($send, 1700001000) === 'empty' && count($calls) === 1, 'STOP did not cancel retry');
 reject_queue(fn() => $q->enqueue('install_123', 'lead_3', $phone, $lead, 1700001001), 'STOP bypassed');
 $q->consent('install_123', $phone, 'admin_123', 'notice-v1', 1700001002);
 reject_queue(fn() => $q->enqueue('install_123', 'lead_3', $phone, $lead, 1700001003), 'consent bypassed STOP');

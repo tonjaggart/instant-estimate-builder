@@ -48,8 +48,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR')) as d:
         code=re.search(r'\b\d{6}\b',msg['Body'][0]).group(); confirm={'request_id':request['request_id'],'code':code}
         assert signed('/v1/verification/confirm',confirm,b)[0]==409
         assert signed('/v1/verification/confirm',confirm)[0]==200
-        assert signed('/v1/verification/confirm',confirm)[0]==409
-        event={'event':'event_1','phone':phone,'lead':{'name':'Synthetic','phone':'+15550000102','service':'Test'}}
+        assert signed('/v1/verification/confirm',confirm)[0]==200
+        event={'event':'event_1','phone':phone,'request_id':request['request_id'],'lead':{'name':'Synthetic','phone':'+15550000102','service':'Test'}}
         assert signed('/v1/events',event)[0]==200 and signed('/v1/events',event,b)[0]==409
         dispatched=subprocess.run(['php','tests/sms-relay-twilio-worker.php'],cwd=root,env=dict(env,IEB_FAKE_PORT=str(provider.server_port),IEB_FAKE_EXISTING_DB='1'),capture_output=True,text=True,check=True)
         assert dispatched.stdout=='accepted' and not dispatched.stderr and len(Provider.requests)==2

@@ -52,6 +52,7 @@ function wp_safe_remote_post($url,$args) {
 }
 function is_wp_error($v) { return false; }
 function wp_remote_retrieve_response_code($v) {
+    if (!empty($GLOBALS['lose_response'])) { $GLOBALS['lose_response']=false; return 503; }
     if (!empty($GLOBALS['confirm_race'])) {
         $GLOBALS['confirm_race']=false; $key=ieb_sms_state_key(); $GLOBALS['users'][7][$key]['status']='revoked'; $GLOBALS['users'][7][$key]['revoke_ack']=false;
     }
@@ -86,6 +87,9 @@ expect($verify->dispatch($send,time())==='accepted', 'verification dispatch to f
 expect($messages[0][0]==='+15551230101', 'verification only sent to opted-in admin');
 preg_match('/\b([0-9]{6})\b/',$messages[0][1],$m); $code=$m[1];
 expect(!ieb_sms_confirm_enrollment('abcdef'), 'bad code rejected');
+$GLOBALS['lose_response']=true;
+expect(!ieb_sms_confirm_enrollment($code), 'lost confirmation response remains pending locally');
+expect(($GLOBALS['users'][7][ieb_sms_state_key()]['status'] ?? '')==='pending', 'lost confirmation does not falsely update local state');
 expect(ieb_sms_process_admin(['_wpnonce'=>'valid','operation'=>'confirm','code'=>$code]), 'correct code enables enrollment through admin handler');
 $GLOBALS['blog_id']=2; expect(!ieb_sms_queue_lead(42), 'multisite enrollment state isolated by site'); $GLOBALS['blog_id']=1;
 expect(strpos(json_encode($GLOBALS['users']),$code)===false, 'OTP not stored');

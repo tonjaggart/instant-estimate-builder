@@ -1,0 +1,54 @@
+<?php
+// Synthetic numbers and injected fake provider only; no network.
+require __DIR__.'/../sms-relay/queue.php';
+require __DIR__.'/../sms-relay/verification.php';
+require __DIR__.'/../sms-relay/auth.php';
+require __DIR__.'/../sms-relay/api.php';
+function check_security($ok, $message) { if (!$ok) throw new RuntimeException($message); }
+$db=new PDO('sqlite::memory:'); $key=random_bytes(32); $q=new IebSmsQueue($db,$key); $q->install();
+$v=new IebSmsVerification($db,$key); $q->configureInstallation('install_a',10,true);
+$now=time(); $phone='+15550000101'; $lead=['name'=>'Synthetic','phone'=>'+15550000102','service'=>'Test'];
+$q->consent('install_a',$phone,'admin_1','notice',$now);
+$q->enqueue('install_a','old_event',$phone,$lead,$now);
+$row=$db->query("SELECT * FROM ieb_sms_messages WHERE event='old_event'")->fetch(PDO::FETCH_ASSOC);
+$allowed=new ReflectionMethod(IebSmsQueue::class,'messageAllowed');
+check_security($allowed->invoke($q,$row),'fresh message should be eligible');
+$q->revoke('install_a',$phone,'admin_1',$now);
+$q->consent('install_a',$phone,'admin_1','notice',$now);
+check_security(!$allowed->invoke($q,$row),'pre-revocation claimed message became eligible after re-enrollment');
+$calls=0; $send=function() use (&$calls) { ++$calls; return 'accepted'; };
+$result=$q->dispatchOne($send,$now);
+if (!getenv('TEST_CONFIRM_ONLY')) check_security($calls===0,'revoked queued alert sent after re-enrollment: '.$result);
+
+$number='+15550000103'; $id=bin2hex(random_bytes(16)); $messages=[];
+$v->request('install_a',$id,$number,'admin_1','admin-sms-v1',true,$now);
+$v->dispatch(function($to,$body) use (&$messages) { $messages[]=$body; return 'accepted'; },$now);
+check_security(preg_match('/\b([0-9]{6})\b/',$messages[0],$m)===1,'verification code missing');
+check_security($v->confirm('install_a',$id,$m[1],$now),'initial confirm failed');
+check_security($v->confirm('install_a',$id,$m[1],$now),'same code retry after lost response must succeed');
+check_security(!$v->confirm('install_a',$id,'999999'===$m[1]?'999998':'999999',$now),'different code must fail');
+check_security(!$v->confirm('install_a',$id,$m[1],$now+600),'expired confirmation retry succeeded');
+$q->revoke('install_a',$number,'admin_1',$now,$id);
+check_security(!$v->confirm('install_a',$id,$m[1],$now),'revoked confirmation retry succeeded');
+$q->consent('install_a',$number,'admin_1','notice',$now);
+check_security(!$v->confirm('install_a',$id,$m[1],$now),'old confirmation retry succeeded after reenrollment');
+ieb_auth_install_schema($db); $secret=bin2hex(random_bytes(32));
+$api=new IebRelayApi($db,$q,['install_a'=>$secret],$v);
+$oldBody=json_encode(['event'=>'legacy_late','phone'=>$number,'lead'=>$lead]);
+$oldNonce=bin2hex(random_bytes(16)); $timestamp=(string)$now;
+$oldHeaders=['installation'=>'install_a','timestamp'=>$timestamp,'nonce'=>$oldNonce,'signature'=>ieb_auth_sign($secret,'install_a','POST','/v1/events',$timestamp,$oldNonce,$oldBody)];
+[$status]=$api->handle('POST','/v1/events',$oldHeaders,$oldBody,$now);
+check_security($status===400,'legacy event without consent generation must be rejected');
+$body=json_encode(['event'=>'late_event','phone'=>$number,'lead'=>$lead,'request_id'=>$id]);
+$nonce=bin2hex(random_bytes(16)); $timestamp=(string)$now;
+$headers=['installation'=>'install_a','timestamp'=>$timestamp,'nonce'=>$nonce,'signature'=>ieb_auth_sign($secret,'install_a','POST','/v1/events',$timestamp,$nonce,$body)];
+[$status]=$api->handle('POST','/v1/events',$headers,$body,$now);
+check_security($status===409,'old delayed event must be rejected by its consent generation');
+$stopNumber='+15550000104'; $stopId=bin2hex(random_bytes(16)); $messages=[];
+$v->request('install_a',$stopId,$stopNumber,'admin_1','admin-sms-v1',true,$now);
+$v->dispatch(function($to,$body) use (&$messages) { $messages[]=$body; return 'accepted'; },$now);
+check_security(preg_match('/\b([0-9]{6})\b/',$messages[0],$m)===1,'STOP fixture code missing');
+check_security($v->confirm('install_a',$stopId,$m[1],$now),'STOP fixture confirmation failed');
+$q->stop($stopNumber,$now); $q->start($stopNumber,$now+1);
+check_security(!$v->confirm('install_a',$stopId,$m[1],$now+1),'STOP/START resurrected old confirmation');
+echo "PASS: revoked alerts fenced and confirmation retries fenced by revoke\n";

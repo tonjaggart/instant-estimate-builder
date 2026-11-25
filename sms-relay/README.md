@@ -1,6 +1,14 @@
-# SMS relay security foundation — NOT A SERVICE
+# SMS relay local experiments — NOT A SERVICE
 
-Status: **incomplete; not deployable; do not enable SMS**. This directory is an isolated authentication experiment in a plugin feature worktree. It provides no HTTP router, plugin connection, consent, delivery, provider integration, STOP/HELP handling, entitlements, audit, or operations. Nothing here changes the current plugin behavior. The relay must be separately packaged and hosted, outside the WordPress plugin and web document root; no Twilio credential may be put in the plugin or this repository.
+Status: **incomplete; not deployable; do not enable SMS**. This directory contains authentication and queue experiments in a plugin feature worktree. The loopback HTTP router in `tests/` is a synthetic fixture, not a service. There is no WordPress client or user interface, authenticated enrollment, actual provider, webhook signature validation, HELP handling, operational hosting or real delivery. Nothing here changes the current plugin behavior. The relay must be separately packaged and hosted, outside the WordPress plugin and web document root; no Twilio credential may be put in the plugin or this repository.
+
+## Local queue experiment
+
+`queue.php` adds an SQLite ledger with encrypted recipient/lead payloads, keyed phone and payload indexes, per-installation consent history and revocation, cross-installation STOP state, idempotent enqueue/conflict detection, explicit caps and a fake-provider callback. Events reserve a quota slot and are marked `unknown` *before* a provider call: a crash, exception, malformed callback result or uncertain outcome is never automatically retried. Only an explicit `retryable` result representing a **proven non-acceptance** can be retried; attempts are capped at three. The test cap is synthetic, not a proposed customer allowance or policy. Caps are counted by UTC month; capped events are terminal in this prototype.
+
+**Do not attach a real sender.** The callback and consent methods are trusted internal interfaces, not authorization or ownership verification. There is an unresolved race between the final consent check and a provider call; inbound STOP during that interval can arrive before a send but too late to prevent it. A timestamp comparison on `start` prevents older/tied synthetic calls from undoing STOP but does not protect against a replayed signed webhook with a new local receipt time. Real provider behavior, webhook idempotency/order and message ownership must be designed and tested before use. Configuration, secret storage/rotation, migrations, data retention/deletion, operational recovery of unknown outcomes, quota policy and abuse controls are absent. The audit preserves local consent changes but is not proof of actual user consent or phone ownership. A cap of zero is deliberately rejected; no paid entitlements are configured. The same secret currently derives encryption and keyed indexes, so key rotation also requires an explicit migration design.
+
+The test fixture creates a local synthetic installation with a hardcoded test cap and accepts self-reported consent under an installation HMAC. It is loopback-only and must never be deployed or mistaken for a secure enrollment API. It does not validate provider signatures, connect to WordPress or send SMS.
 
 ## Verified baseline
 
@@ -25,12 +33,17 @@ From the worktree root:
 ```sh
 php tests/sms-relay-auth.php
 python3 tests/sms-relay-auth-concurrency.py
+php tests/sms-relay-queue.php
+php tests/sms-relay-consent-audit.php
+php tests/sms-relay-stop-order.php
+python3 tests/sms-relay-queue-concurrency.py
+python3 tests/sms-relay-http.py
 php tests/conditional-pricing.php
 php tests/test-email-subject.php
 php -l sms-relay/auth.php
 ```
 
-The authentication test uses an in-memory SQLite database and synthetic payload only; it sends no HTTP and no SMS. It covers a valid signature, replay, tampered body/method/path/installation/signature, timestamp boundaries and invalid inputs. The separate concurrency test opens one temporary SQLite file from 24 local PHP processes and checks that exactly one accepts the same signed request. These are **not** penetration, Twilio SDK, HTTP, webhook, load, network-failure, or real-delivery tests.
+The authentication test uses an in-memory SQLite database and synthetic payload only. The separate concurrency test opens one temporary SQLite file from 24 local PHP processes and checks that exactly one accepts the same signed request. Queue tests exercise synthetic consent, STOP/START, encrypted payloads, duplicate/conflicting events, retry, caps, disabled installation and audit history. Another test runs 12 competing PHP processes against SQLite, then kills a fake-provider worker after it claims an event and checks the unknown state reserves quota. The HTTP test exercises a loopback-only fixture with signed requests and a separate fake worker. No test sends a text or uses a real provider. These are **not** real WordPress pipeline, penetration, Twilio SDK, signed webhook, production load or real-delivery tests.
 
 ## Required before staging integration
 

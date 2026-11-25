@@ -7,16 +7,10 @@ function ieb_sms_configured() {
         && is_string(IEB_SMS_INSTALLATION) && (bool) preg_match('/\A[a-zA-Z0-9_-]{8,64}\z/D', IEB_SMS_INSTALLATION)
         && is_string(IEB_SMS_SECRET) && (bool) preg_match('/\A[0-9a-f]{64}\z/D', IEB_SMS_SECRET);
 }
-// Once selected, do not silently revive the old email-to-carrier route if the
-// relay configuration is removed. Existing sites remain unchanged until selected.
+// Retain the helper for compatibility, but never resume carrier-email sending.
 function ieb_sms_legacy_enabled() {
-    if (ieb_sms_configured()) {
-        if (!get_option('_ieb_sms_relay_selected',false)) update_option('_ieb_sms_relay_selected','1',false);
-        return false;
-    }
-    return !get_option('_ieb_sms_relay_selected',false);
+    return false;
 }
-add_action('init','ieb_sms_legacy_enabled');
 function ieb_sms_allowed_user() { return current_user_can(defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options'); }
 function ieb_sms_state_key() { return '_ieb_sms_recipient'; }
 /** Compare-and-set the one installation-wide recipient under a MySQL advisory lock. */
@@ -196,7 +190,8 @@ function ieb_sms_process_admin($post) {
 }
 function ieb_sms_render_settings() {
     if (!ieb_sms_allowed_user()) return;
-    echo '<div class="hgm-dashboard-card ieb-notifications-card"><h2>Administrator SMS alerts</h2>';
+    echo '<div class="hgm-dashboard-card ieb-notifications-card"><h2>Instant Estimate Builder SMS Alerts</h2>';
+    echo '<p>Receive a text alert when a new estimate request is submitted. Alerts may include the prospective customer’s name, phone number, and requested service.</p>';
     $failure=get_option('_ieb_sms_last_failure',false);
     if (is_array($failure) && !empty($failure['lead_id'])) {
         $failureLead=(int)$failure['lead_id']; $reason=(string)($failure['reason'] ?? '');

@@ -70,59 +70,21 @@ function hgm_render_notifications_settings_page() {
     }
 
     if ($active_tab === 'text') {
-        ieb_sms_render_settings();
-        if (!ieb_sms_legacy_enabled()) {
-            echo '<p>Legacy carrier-email alerts are disabled for this site; email notifications are unaffected.</p>';
+        // Keep the existing staging screenshot review route visual-only.
+        $review_sms = isset($_GET['ieb_sms_preview']) && $_GET['ieb_sms_preview'] === '1' && current_user_can(defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options');
+        if ($review_sms) {
+            echo '<div class="hgm-dashboard-card ieb-notifications-card" id="ieb-planned-sms">';
+            echo '<div class="hgm-card-label">Text alerts</div>';
+            echo '<h2>Instant Estimate Builder SMS Alerts</h2>';
+            echo '<p>Receive a text alert when a new estimate request is submitted. Alerts may include the prospective customer’s name, phone number, and requested service.</p>';
+            echo '<div class="ieb-notifications-form">';
+            echo '<p><label for="ieb-sms-review-phone"><strong>Your mobile number</strong></label><br><input id="ieb-sms-review-phone" type="tel" inputmode="numeric" placeholder="10-digit mobile number" class="regular-text" /></p>';
+            echo '<p><label><input type="checkbox" /> I agree to receive recurring Instant Estimate Builder estimate-request text alerts from Taggart Media Group LLC at the mobile number I provide. Alerts may include lead contact details. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to unsubscribe.</label></p>';
+            echo '<p><a href="https://taggartmediagroup.com/instant-estimate-builder-sms-alert-terms/" target="_blank" rel="noopener noreferrer">SMS Alert Terms</a> &nbsp;|&nbsp; <a href="https://taggartmediagroup.com/privacy-policy/" target="_blank" rel="noopener noreferrer">Privacy Policy</a></p>';
+            echo '<p><button type="button" class="button button-primary">Save Text Alerts</button></p>';
+            echo '</div></div>';
         } else {
-        $notification_options = get_option('hgm_notification_settings', []);
-        $saved_recipients = $notification_options['sms_recipients'] ?? [];
-
-        $carriers = [
-            'verizon'    => 'Verizon',
-            'att'        => 'AT&T',
-            'tmobile'    => 'T-Mobile',
-            'sprint'     => 'Sprint',
-            'uscellular' => 'US Cellular',
-        ];
-
-        echo '<div class="hgm-dashboard-card ieb-notifications-card">';
-        echo '<div class="hgm-card-label">Text Alerts</div>';
-        echo '<h2>Text Notifications For New Estimate Leads</h2>';
-        echo '<p>Add the phone numbers that should receive a text alert when a new estimate lead is submitted.</p>';
-        echo '<form method="post" action="options.php" class="ieb-notifications-form">';
-        settings_fields('hgm_notification_settings');
-        echo '<div class="ieb-notification-field-row">';
-        echo '<label>Recipient Phone Numbers</label>';
-        echo '<div class="ieb-notification-field-control">';
-        echo '<div id="sms-recipient-list" class="ieb-sms-recipient-list">';
-
-        $has_recipients = !empty($saved_recipients);
-        $recipients_to_render = $has_recipients ? $saved_recipients : [['phone' => '', 'carrier' => '']];
-
-        foreach ($recipients_to_render as $index => $recipient) {
-            $phone = esc_attr($recipient['phone'] ?? '');
-            $carrier = esc_attr($recipient['carrier'] ?? '');
-
-            echo '<div class="sms-recipient-row ieb-sms-recipient-row">';
-            echo '<input type="text" name="hgm_notification_settings[sms_recipients]['.$index.'][phone]" value="'.$phone.'" placeholder="Phone Number" class="regular-text ieb-notification-input" />';
-            echo '<select name="hgm_notification_settings[sms_recipients]['.$index.'][carrier]" class="ieb-notification-select">';
-            foreach ($carriers as $value => $label) {
-                $selected = ($carrier === $value) ? 'selected' : '';
-                echo "<option value=\"$value\" $selected>$label</option>";
-            }
-            echo '</select>';
-            echo '<a href="#" class="remove-recipient ieb-remove-recipient">Remove</a>';
-            echo '</div>';
-        }
-
-        echo '</div>';
-        echo '<button type="button" class="button hgm-button-secondary ieb-add-recipient-button" id="add-sms-recipient">Add Phone Number</button>';
-        echo '<p class="description ieb-email-field-hint">Max 5 numbers. Format: 5551234567</p>';
-        echo '</div>';
-        echo '</div>';
-        submit_button('Save Text Notifications', 'primary hgm-button-primary ieb-notification-save-button', 'submit', true);
-        echo '</form>';
-        echo '</div>';
+            ieb_sms_render_settings();
         }
     }
 

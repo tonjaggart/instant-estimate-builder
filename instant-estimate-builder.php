@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Instant Estimate Builder
  * Description: Build customizable multi-step instant estimate forms for local service businesses with lead capture, notifications, and lead management.
- * Version: 1.0.13-conditional.1
+ * Version: 1.0.13-conditional.2-sms-wip
  * Requires at least: 5.4
  * Tested up to: 7.0
  * Requires PHP: 7.4

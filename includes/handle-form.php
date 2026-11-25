@@ -501,57 +501,8 @@ function hgm_submit_quote_form() {
             }
         }
     }
-    // ✅ Text Message Notifications
-    $sms_settings = get_option('hgm_notification_settings', []);
-    $sms_recipients = $sms_settings['sms_recipients'] ?? [];
-
-    // A configured relay replaces the legacy carrier gateways, even after STOP.
-    // Customer and sales emails above are independent and remain unchanged.
-    if ((!function_exists('ieb_sms_legacy_enabled') || ieb_sms_legacy_enabled()) && !empty($sms_recipients) && is_array($sms_recipients)) {
-        $headers[] = 'Content-Type: text/plain; charset=UTF-8';
-        $sms_subject = ''; // Subject not needed for SMS
-        $estimate_low = get_post_meta($lead_id, '_hgm_estimate_low', true);
-        $estimate_high = get_post_meta($lead_id, '_hgm_estimate_high', true);
-
-        // ✅ Correct edit link for the custom view page
-        $edit_link = admin_url('admin.php?page=instant-estimate-lead&id=' . $lead_id);
-
-        // ✅ Build the SMS body
-        // Use the sanitized submit value first, then fall back to saved lead meta.
-        // Label each line so email-to-SMS gateways do not make the customer name look missing.
-        $first_name_for_sms = trim($first_name);
-        if ($first_name_for_sms === '') {
-            $first_name_for_sms = trim((string) get_post_meta($lead_id, 'first_name', true));
-        }
-
-        $sms_body  = "New " . $form_title . " Estimate:\n";
-        $sms_body .= "Name: {$first_name_for_sms}\n";
-        $sms_body .= "Phone: {$phone}\n";
-        $sms_body .= "ZIP: {$zip_code}\n";
-        $sms_body .= "Estimate: {$estimate_low} - {$estimate_high}\n";
-        //$sms_body .= $edit_link;
-
-        foreach ($sms_recipients as $recipient) {
-            $clean_phone = preg_replace('/\D/', '', $recipient['phone'] ?? '');
-            $carrier = sanitize_text_field($recipient['carrier'] ?? '');
-
-            $carrier_domains = [
-                'verizon'     => '@vtext.com',
-                'att'         => '@txt.att.net',
-                'tmobile'     => '@tmomail.net',
-                'sprint'      => '@messaging.sprintpcs.com',
-                'uscellular'  => '@email.uscc.net',
-            ];
-
-            if (strlen($clean_phone) === 10 && isset($carrier_domains[$carrier])) {
-                $to_sms = $clean_phone . $carrier_domains[$carrier];
-                $headers = ['Content-Type: text/plain; charset=UTF-8'];
-
-                $sent = wp_mail($to_sms, $sms_subject, $sms_body, $headers);
-                error_log($sent ? 'SMS notification sent for lead ID ' . $lead_id : 'SMS notification failed for lead ID ' . $lead_id);
-            }
-        }
-    }
+    // Carrier-email preferences remain stored, but are not SMS consent and are
+    // never used as a fallback transport.
     // Keep relay scheduling separate from the existing customer and admin emails.
     // A failed queue or scheduler must never change the customer's submission result.
     try { ieb_sms_queue_lead($lead_id); } catch (Throwable $e) { /* fail closed */ }

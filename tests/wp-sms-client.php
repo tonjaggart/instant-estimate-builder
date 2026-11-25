@@ -7,8 +7,9 @@ define('DB_NAME','stub');
 class SmsStubDb {
     public $usermeta='usermeta', $options='options', $postmeta='postmeta', $posts='posts';
     function prepare($query,...$args) { return [$query,$args]; }
-    function get_var($query) { if (!empty($GLOBALS['write_race']) && str_contains($query[0],'GET_LOCK')) { $GLOBALS['write_race']=false; $GLOBALS['options'][1][ieb_sms_state_key()]['revoke_ack']=false; } return '1'; }
+    function get_var($query) { if (!empty($GLOBALS['write_race']) && str_contains($query[0],'GET_LOCK')) { $GLOBALS['write_race']=false; $GLOBALS['options'][1][ieb_sms_state_key()]['recipients'][1]['revoke_ack']=false; } return '1'; }
     function get_results($query) {
+        if ($query[1][0]==='_ieb_sms_fanout') return []; // No partial inserts in this stub suite.
         $cursor=$query[1][1]; $rows=[]; $id=0;
         foreach ($GLOBALS['meta'] ?? [] as $lead=>$values) foreach ($values['_ieb_sms_pending'] ?? [] as $job) {
             ++$id; if ($id>$cursor) $rows[]=(object)['meta_id'=>$id,'post_id'=>$lead,'meta_value'=>serialize($job),'post_type'=>'hgm_lead','post_status'=>'publish'];
@@ -58,34 +59,40 @@ function is_wp_error($v) { return false; }
 function wp_remote_retrieve_response_code($v) {
     if (!empty($GLOBALS['lose_response'])) { $GLOBALS['lose_response']=false; return 503; }
     if (!empty($GLOBALS['confirm_race'])) {
-        $GLOBALS['confirm_race']=false; $key=ieb_sms_state_key(); $GLOBALS['options'][1][$key]['status']='revoked'; $GLOBALS['options'][1][$key]['revoke_ack']=false;
+        $GLOBALS['confirm_race']=false; $key=ieb_sms_state_key(); $GLOBALS['options'][1][$key]['recipients'][1]['status']='revoked'; $GLOBALS['options'][1][$key]['recipients'][1]['revoke_ack']=false;
     }
     return $v['response']['code'];
 }
 function wp_remote_retrieve_body($v) { return $v['body']; }
 function wp_schedule_single_event(...$args) { if (!empty($GLOBALS['schedule_failure'])) return false; $GLOBALS['scheduled'][]=$args; return true; }
 function get_posts($args) { $ids=[]; foreach ($GLOBALS['meta'] ?? [] as $id=>$meta) if (!empty($meta['_ieb_sms_pending'])) $ids[]=$id; return $ids; }
-function get_post_meta($id,$key,$single=true) { $v=$GLOBALS['meta'][$id][$key] ?? ''; return $single ? ($key==='_ieb_sms_once' ? ($v[0] ?? '') : $v) : (is_array($v) ? $v : []); }
+function get_post_meta($id,$key,$single=true) { $v=$GLOBALS['meta'][$id][$key] ?? ''; return $single ? (in_array($key,['_ieb_sms_once','_ieb_sms_fanout','_ieb_sms_fanout_done'],true) || strpos($key,'_ieb_sms_once_')===0 ? ($v[0] ?? '') : $v) : (is_array($v) ? $v : []); }
 function update_post_meta($id,$key,$value) { $GLOBALS['meta'][$id][$key]=wp_unslash($value); return true; }
 function add_post_meta($id,$key,$value,$unique=false) { if ($unique && !empty($GLOBALS['meta'][$id][$key])) return false; $GLOBALS['meta'][$id][$key][]=wp_unslash($value); return true; }
-function delete_post_meta($id,$key,$value) { $value=wp_unslash($value); $GLOBALS['meta'][$id][$key]=array_values(array_filter($GLOBALS['meta'][$id][$key] ?? [],function($v) use ($value) { return $v!==$value; })); return true; }
+function delete_post_meta($id,$key,$value=null) { if ($value===null) { unset($GLOBALS['meta'][$id][$key]); return true; } $value=wp_unslash($value); $GLOBALS['meta'][$id][$key]=array_values(array_filter($GLOBALS['meta'][$id][$key] ?? [],function($v) use ($value) { return $v!==$value; })); return true; }
 function get_the_title($id) { return $GLOBALS['test_title'] ?? 'Gutter Replacement'; }
 function get_post_type($id) { return 'hgm_lead'; }
 function get_post_status($id) { return 'publish'; }
 function expect($value,$message) { if (!$value) { fwrite(STDERR,"FAIL: $message\n"); exit(1); } }
 $client=__DIR__.'/../includes/sms-client.php'; if (is_file($client)) require $client;
+expect(function_exists('ieb_sms_event_id'), 'event ID helper exists');
 expect(function_exists('ieb_sms_request_enrollment'), 'enrollment function is implemented');
 expect(ieb_sms_request_enrollment('+15551230101',true) === false, 'unconfigured enrollment fails closed');
 expect(empty($GLOBALS['http']), 'unconfigured enrollment never calls HTTP');
 require __DIR__.'/../sms-relay/auth.php'; require __DIR__.'/../sms-relay/queue.php'; require __DIR__.'/../sms-relay/verification.php'; require __DIR__.'/../sms-relay/api.php';
 define('IEB_SMS_RELAY_HOST','relay.example.test'); define('IEB_SMS_INSTALLATION','test_install'); define('IEB_SMS_SECRET',getenv('IEB_TEST_KEY') ?: bin2hex(random_bytes(32)));
+$original_table=$GLOBALS['wpdb']->postmeta;
+$GLOBALS['wpdb']->postmeta='wp_1_postmeta'; $siteOne=ieb_sms_event_id(42,1);
+$GLOBALS['wpdb']->postmeta='wp_2_postmeta'; $siteTwo=ieb_sms_event_id(42,1);
+$GLOBALS['wpdb']->postmeta=$original_table;
+expect($siteOne!==$siteTwo, 'same lead and recipient ID in different site tables must not collide');
 $db=new PDO(getenv('IEB_TEST_DB') ? 'sqlite:'.getenv('IEB_TEST_DB') : 'sqlite::memory:'); $key=getenv('IEB_TEST_CRYPT') ? hex2bin(getenv('IEB_TEST_CRYPT')) : random_bytes(32); $queue=new IebSmsQueue($db,$key); $verify=new IebSmsVerification($db,$key); $queue->install(); ieb_auth_install_schema($db); $queue->configureInstallation(IEB_SMS_INSTALLATION,10,true); $GLOBALS['api']=new IebRelayApi($db,$queue,[IEB_SMS_INSTALLATION=>IEB_SMS_SECRET],$verify);
 $GLOBALS['can']=false; expect(!ieb_sms_request_enrollment('+15551230101',true), 'capability enforced');
 $GLOBALS['invalid_success']=true; expect(ieb_sms_post('/v1/events',[])===0, 'malformed success does not acknowledge delivery'); $GLOBALS['invalid_success']=false;
 $GLOBALS['can']=true; expect(!ieb_sms_request_enrollment('+15551230101',false), 'unchecked consent rejected');
 expect(ieb_sms_process_admin(['_wpnonce'=>'valid','operation'=>'request','phone'=>'+15551230101','opt_in'=>'1']), 'request accepted through admin handler');
 $last=end($GLOBALS['http']); $request_body=json_decode($last[1]['body'],true); expect(($request_body['notice'] ?? '')==='admin-sms-v2', 'consent version matches preview-based notice');
-expect(!ieb_sms_request_enrollment('+15551230103',true), 'pending number cannot change without revoking prior challenge');
+expect(!ieb_sms_request_enrollment('+12025550103',false), 'second number also requires its own consent');
 $GLOBALS['meta'][42]=['first_name'=>'Synthetic \\ Lead','phone'=>'+15551230102','_hgm_form_id'=>8];
 expect(ieb_sms_queue_lead(42)===false, 'pending consent cannot queue');
 $messages=[]; $send=function($to,$body) use (&$messages) { $messages[]=[$to,$body]; return 'accepted'; };
@@ -95,8 +102,8 @@ preg_match('/\b([0-9]{6})\b/',$messages[0][1],$m); $code=$m[1];
 expect(!ieb_sms_confirm_enrollment('abcdef'), 'bad code rejected');
 $GLOBALS['lose_response']=true;
 expect(!ieb_sms_confirm_enrollment($code), 'lost confirmation response remains pending locally');
-expect(($GLOBALS['options'][1][ieb_sms_state_key()]['status'] ?? '')==='pending', 'lost confirmation does not falsely update local state');
-expect(ieb_sms_process_admin(['_wpnonce'=>'valid','operation'=>'confirm','code'=>$code]), 'correct code enables enrollment through admin handler');
+expect(($GLOBALS['options'][1][ieb_sms_state_key()]['recipients'][1]['status'] ?? '')==='pending', 'lost confirmation does not falsely update local state');
+expect(ieb_sms_process_admin(['_wpnonce'=>'valid','operation'=>'confirm','recipient'=>'1','code'=>$code]), 'correct code enables enrollment through admin handler');
 $GLOBALS['blog_id']=2; expect(!ieb_sms_queue_lead(42), 'multisite enrollment state isolated by site'); $GLOBALS['blog_id']=1;
 expect(strpos(json_encode($GLOBALS['options']),$code)===false, 'OTP not stored');
 $GLOBALS['can']=false;
@@ -104,7 +111,7 @@ expect(ieb_sms_queue_lead(42), 'recipient consent does not depend on the WordPre
 $GLOBALS['can']=true;
 // Another administrator manages the same single installation-wide enrollment.
 $GLOBALS['current_uid']=8;
-expect(!ieb_sms_request_enrollment('+12025550198',true), 'a second admin cannot enroll a second recipient');
+expect(!ieb_sms_request_enrollment('+15551230101',true), 'a second admin cannot duplicate a verified recipient');
 $GLOBALS['current_uid']=7;
 expect(!ieb_sms_queue_lead(42), 'the same lead cannot be queued twice');
 expect(count($GLOBALS['scheduled'])===1, 'lead queued without HTTP');
@@ -156,7 +163,7 @@ $GLOBALS['network_down']=true;
 expect(!ieb_sms_revoke_enrollment(), 'failed remote revoke is reported');
 $last=end($GLOBALS['http']); $revoke_data=json_decode($last[1]['body'],true); expect(isset($revoke_data['request_id']) && $revoke_data['request_id']===$request_body['request_id'], 'opt-out tombstones pending verification id');
 expect(!ieb_sms_queue_lead(43), 'local opt-out holds during relay outage');
-expect(!ieb_sms_request_enrollment('+15551230103',true), 'cannot reenroll until old revoke acknowledged');
+expect(!ieb_sms_request_enrollment('+15551230101',true), 'cannot reenroll the same phone until old revoke acknowledged');
 $GLOBALS['network_down']=false;
 expect(ieb_sms_revoke_enrollment(), 'opt-out retry');
 expect(!ieb_sms_queue_lead(43), 'opt-out prevents later queue');
@@ -171,11 +178,11 @@ expect(function_exists('ieb_sms_render_settings'), 'admin SMS settings rendered'
 ob_start(); ieb_sms_render_settings(); $html=ob_get_clean();
 expect(strpos($html,IEB_SMS_SECRET)===false, 'secret not rendered in admin');
 expect(strpos($html,'name="opt_in"')!==false && strpos($html,'I am the user of this number')!==false && strpos($html,'Reply HELP for help or STOP')!==false, 'own-number consent and opt out displayed');
-expect(ieb_sms_request_enrollment('+15551230106',true), 'new test enrollment');
+expect(ieb_sms_request_enrollment('+15551230101',true), 'new test enrollment');
 expect($verify->dispatch($send,time())==='accepted', 'new fake verification');
 preg_match('/\b([0-9]{6})\b/',end($messages)[1],$m); $GLOBALS['confirm_race']=true;
 expect(!ieb_sms_confirm_enrollment($m[1]), 'concurrent local revoke cannot be overwritten by confirmation');
-expect(($GLOBALS['options'][1][ieb_sms_state_key()]['status'] ?? '')==='revoked', 'revoked state survives confirmation race');
-$GLOBALS['options'][1][ieb_sms_state_key()]['revoke_ack']=true; $GLOBALS['write_race']=true;
-expect(!ieb_sms_request_enrollment('+15551230107',true), 'new request cannot overwrite concurrent revocation state');
+expect(($GLOBALS['options'][1][ieb_sms_state_key()]['recipients'][1]['status'] ?? '')==='revoked', 'revoked state survives confirmation race');
+$GLOBALS['options'][1][ieb_sms_state_key()]['recipients'][1]['revoke_ack']=true; $GLOBALS['write_race']=true;
+expect(!ieb_sms_request_enrollment('+15551230101',true), 'new request cannot overwrite concurrent revocation state');
 echo getenv('IEB_TEST_LOOPBACK_PORT') ? "PASS: loopback relay + fake provider; no external network\n" : "PASS: WP stubs + real authenticated relay and fake provider, no network\n";

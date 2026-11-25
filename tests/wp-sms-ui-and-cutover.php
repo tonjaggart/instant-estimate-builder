@@ -1,9 +1,12 @@
 <?php
 /** Disposable local WordPress and MySQL only. All outbound HTTP and mail are intercepted. */
-$root = getenv('IEB_TEST_WP');
-if (!$root || !str_ends_with((string) realpath($root), '/ieb-sms-isolated-db/wp')) throw new RuntimeException('Disposable WordPress required');
+$root = getenv('IEB_MULTI_TEST_WP') ?: getenv('IEB_TEST_WP');
+$path=(string) realpath($root ?: '');
+$multi=str_ends_with($path,'/ieb-sms-multi-recipient-test/wp');
+if (!$root || (!$multi && !str_ends_with($path, '/ieb-sms-isolated-db/wp'))) throw new RuntimeException('Disposable WordPress required');
+define('DISABLE_WP_CRON',true);
 require $root . '/wp-load.php';
-if (DB_NAME !== 'ieb_test' || strpos(DB_HOST, 'ieb-sms-isolated-db/mysql.sock') === false) throw new RuntimeException('Isolated MySQL required');
+if ($multi ? (DB_NAME !== 'ieb_multi_test' || strpos(DB_HOST,'ieb-sms-multi-recipient-test/mysql.sock')===false) : (DB_NAME !== 'ieb_test' || strpos(DB_HOST, 'ieb-sms-isolated-db/mysql.sock') === false)) throw new RuntimeException('Isolated MySQL required');
 function test_sms_cutover($value, $message) { if (!$value) throw new RuntimeException($message); }
 add_filter('pre_http_request', fn() => throw new RuntimeException('Outbound HTTP blocked'), PHP_INT_MIN);
 $mails = [];

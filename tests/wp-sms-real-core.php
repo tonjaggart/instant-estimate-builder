@@ -1,9 +1,12 @@
 <?php
 /** Run ONLY against a disposable WP installation: IEB_TEST_WP=/path php tests/wp-sms-real-core.php [race PHONE]. */
-$root=getenv('IEB_TEST_WP');
-if (!$root || !is_file($root.'/wp-load.php') || !str_ends_with((string)realpath($root),'/ieb-sms-isolated-db/wp')) throw new RuntimeException('Disposable WordPress required');
+$root=getenv('IEB_MULTI_TEST_WP') ?: getenv('IEB_TEST_WP');
+$path=(string)realpath($root ?: ''); $multi=str_ends_with($path,'/ieb-sms-multi-recipient-test/wp');
+if (!$root || !is_file($root.'/wp-load.php') || (!$multi && !str_ends_with($path,'/ieb-sms-isolated-db/wp'))) throw new RuntimeException('Disposable WordPress required');
+define('DISABLE_WP_CRON',true);
 require $root.'/wp-load.php';
-if (DB_NAME !== 'ieb_test' || strpos(DB_HOST,'ieb-sms-isolated-db/mysql.sock')===false) throw new RuntimeException('Refusing non-isolated database');
+if ($multi ? (DB_NAME!=='ieb_multi_test' || strpos(DB_HOST,'ieb-sms-multi-recipient-test/mysql.sock')===false) : (DB_NAME!=='ieb_test' || strpos(DB_HOST,'ieb-sms-isolated-db/mysql.sock')===false)) throw new RuntimeException('Refusing non-isolated database');
+remove_all_filters('pre_schedule_event'); remove_all_filters('pre_reschedule_event');
 define('IEB_SMS_RELAY_HOST','relay.example.test'); define('IEB_SMS_INSTALLATION','test_install'); define('IEB_SMS_SECRET',str_repeat('a',64));
 require __DIR__.'/../includes/sms-client.php';
 wp_set_current_user(1);
@@ -33,10 +36,47 @@ for ($i=0;$i<105;$i++) {
 ieb_sms_recover_pending();
 $events=0; foreach (_get_cron_array() as $cron) $events+=count($cron['ieb_sms_dispatch_lead'] ?? []);
 check_test($events===100,'recovery must schedule at most 100 jobs per sweep, got '.$events);
+$continuation=wp_next_scheduled('ieb_sms_recover_pending_batch');
+check_test($continuation!==false && $continuation<=time()+10,'full recovery batch schedules prompt continuation');
 ieb_sms_recover_pending();
 $events=0; foreach (_get_cron_array() as $cron) $events+=count($cron['ieb_sms_dispatch_lead'] ?? []);
 check_test($events===105,'recovery must advance to later jobs, got '.$events);
 echo "PASS: bounded recovery advances across all pending jobs\n";
+// A full intent batch must promptly continue, not wait an hour and expire the rest.
+$wpdb->query("DELETE FROM {$wpdb->postmeta}"); $wpdb->query("DELETE FROM {$wpdb->posts}");
+delete_option('cron'); delete_option('_ieb_sms_recovery_cursor'); delete_option('_ieb_sms_fanout_cursor');
+for ($i=0;$i<101;$i++) {
+    $id=wp_insert_post(['post_type'=>'hgm_lead','post_status'=>'publish','post_title'=>'Synthetic']);
+    $created=time(); $job=['uid'=>1,'event'=>'fixture_'.$id,'request_id'=>str_repeat('a',32),'phone'=>'+12025550101','lead'=>['name'=>'Synthetic','phone'=>'2025550199','service'=>'Test'],'created_at'=>$created];
+    add_post_meta($id,'_ieb_sms_fanout',['created_at'=>$created,'jobs'=>[$job]],true);
+}
+ieb_sms_recover_pending();
+$left=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key='_ieb_sms_fanout'");
+check_test($left===1,'intent sweep has a 100-item bound');
+$continuation=wp_next_scheduled('ieb_sms_recover_pending_batch');
+check_test($continuation!==false && $continuation<=time()+10,'full intent batch schedules prompt continuation');
+ieb_sms_recover_pending();
+$left=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key='_ieb_sms_fanout'");
+check_test($left===0,'continuation can recover the remaining intent');
+echo "PASS: bounded fanout recovery schedules prompt continuation\n";
+$wpdb->query("DELETE FROM {$wpdb->postmeta}"); $wpdb->query("DELETE FROM {$wpdb->posts}");
+delete_option('cron'); delete_option('_ieb_sms_recovery_cursor'); delete_option('_ieb_sms_fanout_cursor'); delete_option('_ieb_sms_fanout_retry_needed');
+for ($i=0;$i<100;$i++) {
+    $id=wp_insert_post(['post_type'=>'hgm_lead','post_status'=>'publish']);
+    $created=time(); $job=['uid'=>1,'event'=>'fixture_'.$id,'request_id'=>str_repeat('a',32),'phone'=>'+12025550101','lead'=>['name'=>'Synthetic','phone'=>'2025550199','service'=>'Test'],'created_at'=>$created];
+    add_post_meta($id,'_ieb_sms_fanout',['created_at'=>$created,'jobs'=>[$job]],true);
+}
+$block=function($check,$id,$key) { return $key==='_ieb_sms_pending' ? false : $check; };
+add_filter('add_post_metadata',$block,10,3);
+ieb_sms_recover_pending();
+wp_clear_scheduled_hook('ieb_sms_recover_pending_batch'); // Mimic WP-Cron unscheduling before the callback.
+ieb_sms_recover_pending();
+$continuation=wp_next_scheduled('ieb_sms_recover_pending_batch');
+check_test($continuation!==false && $continuation<=time()+65,'failed intents in prior full page must schedule a retry after an empty final page');
+remove_filter('add_post_metadata',$block,10);
+ieb_sms_recover_pending();
+check_test((int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key='_ieb_sms_fanout'")===0,'failed full batch is recoverable');
+echo "PASS: failures across fanout page boundaries schedule another retry\n";
 
 // Exercise actual WP admin/lead handlers, durable outbox, WP-Cron and real relay API,
 // while all HTTP is intercepted in-process and the only provider is a closure.
@@ -59,7 +99,7 @@ $nonce=wp_create_nonce('ieb_sms_enrollment');
 check_test(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'request','phone'=>'+15550000101','opt_in'=>'1']),'real admin request');
 check_test($verify->dispatch($fake,time())==='accepted','fake verification provider');
 check_test(preg_match('/\\b([0-9]{6})\\b/',$messages[0][1],$match)===1,'fake code');
-check_test(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'confirm','code'=>$match[1]]),'real admin confirmation');
+check_test(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'confirm','recipient'=>'1','code'=>$match[1]]),'real admin confirmation');
 // The configured single-recipient workflow must not expose legacy carrier controls.
 define('IEB_ADMIN_MENU_SLUG','instant-estimate-builder');
 require_once ABSPATH.'wp-admin/includes/template.php';
@@ -109,7 +149,7 @@ ieb_sms_dispatch_lead($retryLead,1,1);
 check_test(get_post_meta($retryLead,'_ieb_sms_pending',false)===[],'idempotent retry removes acknowledged outbox');
 check_test($queue->dispatchOne($fake,time())==='accepted' && $queue->dispatchOne($fake,time())==='empty','lost response did not duplicate provider delivery');
 // Let the single event become due, then run WordPress's real cron entrypoint.
-$_POST=[]; remove_all_filters('wp_doing_ajax'); sleep(2);
+$_POST=[]; remove_all_filters('wp_doing_ajax'); delete_transient('doing_cron'); wp_clear_scheduled_hook('do_pings'); sleep(2);
 register_shutdown_function(function() use ($lead,$queue,$fake,&$messages) {
     try {
         check_test(count(get_post_meta($lead,'_ieb_sms_pending',false))===0,'real cron dispatched and removed outbox');

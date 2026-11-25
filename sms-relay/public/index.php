@@ -4,7 +4,7 @@ ini_set('display_errors','0'); ini_set('log_errors','0');
 header('Cache-Control: no-store'); header('X-Content-Type-Options: nosniff');
 try {
     require_once dirname(__DIR__).'/vendor/autoload.php';
-    require_once dirname(__DIR__).'/auth.php'; require_once dirname(__DIR__).'/queue.php';
+    require_once dirname(__DIR__).'/auth.php'; require_once dirname(__DIR__).'/queue.php'; require_once dirname(__DIR__).'/verification.php';
     require_once dirname(__DIR__).'/api.php'; require_once dirname(__DIR__).'/webhook.php';
     $configPath=getenv('IEB_RELAY_CONFIG');
     if (!is_string($configPath) || !is_file($configPath) || str_starts_with((string)realpath($configPath),realpath(__DIR__).DIRECTORY_SEPARATOR)) throw new RuntimeException('Configuration unavailable');
@@ -31,7 +31,7 @@ try {
         [$status,$output]=$hook->handle($params,$_SERVER['HTTP_X_TWILIO_SIGNATURE']??''); header('Content-Type: application/xml; charset=utf-8');
     } else {
         if ($type!=='application/json') { http_response_code(415); exit; }
-        $api=new IebRelayApi($db,$queue,$c['installations']);
+        $api=new IebRelayApi($db,$queue,$c['installations'],new IebSmsVerification($db,hex2bin($c['encryption_key'])));
         [$status,$response]=$api->handle($method,$uri,['installation'=>$_SERVER['HTTP_X_INSTALLATION']??'','timestamp'=>$_SERVER['HTTP_X_TIMESTAMP']??'','nonce'=>$_SERVER['HTTP_X_NONCE']??'','signature'=>$_SERVER['HTTP_X_SIGNATURE']??''],$body,time());
         header('Content-Type: application/json; charset=utf-8'); $output=json_encode($response,JSON_THROW_ON_ERROR);
     }

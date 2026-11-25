@@ -14,15 +14,13 @@ add_filter('pre_http_request',function($pre,$args,$url) {
     if (getenv('IEB_RACE_LOG')) file_put_contents(getenv('IEB_RACE_LOG'),$args['body']."\n",FILE_APPEND|LOCK_EX);
     return ['response'=>['code'=>202,'message'=>'Accepted'],'body'=>'{"result":"requested"}','headers'=>[],'cookies'=>[]];
 },PHP_INT_MIN,3);
-if (($argv[1] ?? '')==='race') {
-    add_filter('query',function($sql) {
-        if (stripos($sql,'INSERT INTO `wp_usermeta`')!==false && strpos($sql,'_ieb_sms_enrollment_1')!==false) {
-            $dir=getenv('IEB_RACE_DIR'); touch($dir.'/ready-'.getmypid()); $until=microtime(true)+2;
-            while (count(glob($dir.'/ready-*'))<2 && microtime(true)<$until) usleep(10000);
-        }
-        return $sql;
-    });
-    ieb_sms_request_enrollment($argv[2],true); exit;
+if (($argv[1] ?? '')==='race' || ($argv[1] ?? '')==='lead-race') {
+    // Prime metadata before synchronizing to reproduce per-process stale caches.
+    if ($argv[1]==='lead-race') get_post_meta((int)$argv[2], 'first_name', true);
+    $dir=getenv('IEB_RACE_DIR'); touch($dir.'/ready-'.getmypid()); $until=microtime(true)+4;
+    while (count(glob($dir.'/ready-*'))<2 && microtime(true)<$until) usleep(10000);
+    if ($argv[1]==='lead-race') ieb_sms_queue_lead((int)$argv[2]);
+    else ieb_sms_request_enrollment($argv[2],true); exit;
 }
 register_post_type('hgm_lead',['public'=>true]);
 global $wpdb;
@@ -42,7 +40,7 @@ echo "PASS: bounded recovery advances across all pending jobs\n";
 
 // Exercise actual WP admin/lead handlers, durable outbox, WP-Cron and real relay API,
 // while all HTTP is intercepted in-process and the only provider is a closure.
-delete_option('cron'); delete_user_meta(1,ieb_sms_state_key());
+delete_option('cron'); delete_option(ieb_sms_state_key());
 require __DIR__.'/../sms-relay/auth.php'; require __DIR__.'/../sms-relay/queue.php'; require __DIR__.'/../sms-relay/verification.php'; require __DIR__.'/../sms-relay/api.php';
 $db=new PDO('sqlite::memory:'); $key=random_bytes(32); $queue=new IebSmsQueue($db,$key); $verify=new IebSmsVerification($db,$key);
 $queue->install(); ieb_auth_install_schema($db); $queue->configureInstallation(IEB_SMS_INSTALLATION,10,true);
@@ -61,8 +59,15 @@ check_test(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'request','pho
 check_test($verify->dispatch($fake,time())==='accepted','fake verification provider');
 check_test(preg_match('/\\b([0-9]{6})\\b/',$messages[0][1],$match)===1,'fake code');
 check_test(ieb_sms_process_admin(['_wpnonce'=>$nonce,'operation'=>'confirm','code'=>$match[1]]),'real admin confirmation');
+// The configured single-recipient workflow must not expose legacy carrier controls.
+define('IEB_ADMIN_MENU_SLUG','instant-estimate-builder');
+require_once ABSPATH.'wp-admin/includes/template.php';
+require __DIR__.'/../includes/notifications-settings.php';
+$_GET['tab']='text'; ob_start(); hgm_render_notifications_settings_page(); $settingsHtml=ob_get_clean();
+check_test(!str_contains($settingsHtml,'id="add-sms-recipient"'),'legacy carrier controls hidden after relay selection');
+unset($_GET['tab']);
 add_filter('pre_option_hgm_klaviyo_api_key',fn()=>'');
-add_filter('pre_option_hgm_notification_settings',fn()=>['sms_recipients'=>[]]);
+add_filter('pre_option_hgm_notification_settings',fn()=>['sms_recipients'=>[['phone'=>'2025550198','carrier'=>'verizon']]]);
 add_filter('pre_option_hgm_email_settings',fn()=>['sales_team_emails'=>'sales@example.invalid','reply_to'=>'reply@example.invalid']);
 $mails=[]; remove_all_filters('pre_wp_mail'); add_filter('pre_wp_mail',function($pre,$atts) use (&$mails) { $mails[]=$atts; return true; },PHP_INT_MIN,2);
 add_filter('wp_die_ajax_handler',fn()=>function(){throw new RuntimeException('AJAX_DONE');});
@@ -76,7 +81,7 @@ $response=json_decode(ob_get_clean(),true); check_test(!empty($response['success
 $lead=(int)$wpdb->get_var("SELECT ID FROM {$wpdb->posts} WHERE post_type='hgm_lead' ORDER BY ID DESC LIMIT 1");
 check_test(count(get_post_meta($lead,'_ieb_sms_pending',false))===1,'durable outbox saved');
 check_test(count($messages)===1,'no provider dispatch in lead request');
-check_test(count($mails)===2,'customer and admin emails were intercepted');
+check_test(count($mails)===2,'customer and admin emails only; legacy gateway must not send when relay is configured');
 $retryLead=wp_insert_post(['post_type'=>'hgm_lead','post_status'=>'publish']);
 update_post_meta($retryLead,'first_name','Retry'); update_post_meta($retryLead,'phone','+15555550102'); update_post_meta($retryLead,'_hgm_form_id',$form);
 check_test(ieb_sms_queue_lead($retryLead),'real MySQL retry fixture queued');

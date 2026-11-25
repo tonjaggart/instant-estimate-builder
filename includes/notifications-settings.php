@@ -71,6 +71,9 @@ function hgm_render_notifications_settings_page() {
 
     if ($active_tab === 'text') {
         ieb_sms_render_settings();
+        if (!ieb_sms_legacy_enabled()) {
+            echo '<p>Legacy carrier-email alerts are disabled for this site; email notifications are unaffected.</p>';
+        } else {
         $notification_options = get_option('hgm_notification_settings', []);
         $saved_recipients = $notification_options['sms_recipients'] ?? [];
 
@@ -120,6 +123,7 @@ function hgm_render_notifications_settings_page() {
         submit_button('Save Text Notifications', 'primary hgm-button-primary ieb-notification-save-button', 'submit', true);
         echo '</form>';
         echo '</div>';
+        }
     }
 
     echo '</div>';

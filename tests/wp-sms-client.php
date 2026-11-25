@@ -2,11 +2,12 @@
 // Isolated WP function stubs; the actual signed relay API and encrypted queue run in memory.
 error_reporting(E_ALL);
 function add_action(...$args) {}
+function wp_cache_delete(...$args) { return true; }
 define('DB_NAME','stub');
 class SmsStubDb {
-    public $usermeta='usermeta', $postmeta='postmeta', $posts='posts';
+    public $usermeta='usermeta', $options='options', $postmeta='postmeta', $posts='posts';
     function prepare($query,...$args) { return [$query,$args]; }
-    function get_var($query) { return '1'; }
+    function get_var($query) { if (!empty($GLOBALS['write_race']) && str_contains($query[0],'GET_LOCK')) { $GLOBALS['write_race']=false; $GLOBALS['options'][1][ieb_sms_state_key()]['revoke_ack']=false; } return '1'; }
     function get_results($query) {
         $cursor=$query[1][1]; $rows=[]; $id=0;
         foreach ($GLOBALS['meta'] ?? [] as $lead=>$values) foreach ($values['_ieb_sms_pending'] ?? [] as $job) {
@@ -16,10 +17,11 @@ class SmsStubDb {
     }
 }
 $GLOBALS['wpdb']=new SmsStubDb();
-function get_option($k,$default=false) { return $GLOBALS['options'][$k] ?? $default; }
-function update_option($k,$v,$autoload=null) { $GLOBALS['options'][$k]=$v; return true; }
+function get_option($k,$default=false) { return $GLOBALS['options'][get_current_blog_id()][$k] ?? $default; }
+function add_option($k,$v,$deprecated='', $autoload=null) { if (isset($GLOBALS['options'][get_current_blog_id()][$k])) return false; $GLOBALS['options'][get_current_blog_id()][$k]=$v; return true; }
+function update_option($k,$v,$autoload=null) { $GLOBALS['options'][get_current_blog_id()][$k]=$v; return true; }
 function maybe_unserialize($v) { return unserialize($v); }
-function get_current_user_id() { return 7; }
+function get_current_user_id() { return $GLOBALS['current_uid'] ?? 7; }
 function get_current_blog_id() { return $GLOBALS['blog_id'] ?? 1; }
 function current_user_can($cap) { return !empty($GLOBALS['can']); }
 function user_can($uid,$cap) { return !empty($GLOBALS['can']); }
@@ -54,16 +56,16 @@ function is_wp_error($v) { return false; }
 function wp_remote_retrieve_response_code($v) {
     if (!empty($GLOBALS['lose_response'])) { $GLOBALS['lose_response']=false; return 503; }
     if (!empty($GLOBALS['confirm_race'])) {
-        $GLOBALS['confirm_race']=false; $key=ieb_sms_state_key(); $GLOBALS['users'][7][$key]['status']='revoked'; $GLOBALS['users'][7][$key]['revoke_ack']=false;
+        $GLOBALS['confirm_race']=false; $key=ieb_sms_state_key(); $GLOBALS['options'][1][$key]['status']='revoked'; $GLOBALS['options'][1][$key]['revoke_ack']=false;
     }
     return $v['response']['code'];
 }
 function wp_remote_retrieve_body($v) { return $v['body']; }
 function wp_schedule_single_event(...$args) { if (!empty($GLOBALS['schedule_failure'])) return false; $GLOBALS['scheduled'][]=$args; return true; }
 function get_posts($args) { $ids=[]; foreach ($GLOBALS['meta'] ?? [] as $id=>$meta) if (!empty($meta['_ieb_sms_pending'])) $ids[]=$id; return $ids; }
-function get_post_meta($id,$key,$single=true) { $v=$GLOBALS['meta'][$id][$key] ?? ''; return $single ? $v : (is_array($v) ? $v : []); }
+function get_post_meta($id,$key,$single=true) { $v=$GLOBALS['meta'][$id][$key] ?? ''; return $single ? ($key==='_ieb_sms_once' ? ($v[0] ?? '') : $v) : (is_array($v) ? $v : []); }
 function update_post_meta($id,$key,$value) { $GLOBALS['meta'][$id][$key]=wp_unslash($value); return true; }
-function add_post_meta($id,$key,$value) { $GLOBALS['meta'][$id][$key][]=wp_unslash($value); return true; }
+function add_post_meta($id,$key,$value,$unique=false) { if ($unique && !empty($GLOBALS['meta'][$id][$key])) return false; $GLOBALS['meta'][$id][$key][]=wp_unslash($value); return true; }
 function delete_post_meta($id,$key,$value) { $value=wp_unslash($value); $GLOBALS['meta'][$id][$key]=array_values(array_filter($GLOBALS['meta'][$id][$key] ?? [],function($v) use ($value) { return $v!==$value; })); return true; }
 function get_the_title($id) { return 'Gutter Replacement'; }
 function get_post_type($id) { return 'hgm_lead'; }
@@ -91,19 +93,24 @@ preg_match('/\b([0-9]{6})\b/',$messages[0][1],$m); $code=$m[1];
 expect(!ieb_sms_confirm_enrollment('abcdef'), 'bad code rejected');
 $GLOBALS['lose_response']=true;
 expect(!ieb_sms_confirm_enrollment($code), 'lost confirmation response remains pending locally');
-expect(($GLOBALS['users'][7][ieb_sms_state_key()]['status'] ?? '')==='pending', 'lost confirmation does not falsely update local state');
+expect(($GLOBALS['options'][1][ieb_sms_state_key()]['status'] ?? '')==='pending', 'lost confirmation does not falsely update local state');
 expect(ieb_sms_process_admin(['_wpnonce'=>'valid','operation'=>'confirm','code'=>$code]), 'correct code enables enrollment through admin handler');
 $GLOBALS['blog_id']=2; expect(!ieb_sms_queue_lead(42), 'multisite enrollment state isolated by site'); $GLOBALS['blog_id']=1;
-expect(strpos(json_encode($GLOBALS['users']),$code)===false, 'OTP not stored');
+expect(strpos(json_encode($GLOBALS['options']),$code)===false, 'OTP not stored');
 $GLOBALS['can']=false;
-expect(!ieb_sms_queue_lead(42), 'demoted admin is not queued');
+expect(ieb_sms_queue_lead(42), 'recipient consent does not depend on the WordPress user role');
 $GLOBALS['can']=true;
-expect(ieb_sms_queue_lead(42), 'verified lead queued');
+// Another administrator manages the same single installation-wide enrollment.
+$GLOBALS['current_uid']=8;
+expect(!ieb_sms_request_enrollment('+12025550198',true), 'a second admin cannot enroll a second recipient');
+$GLOBALS['current_uid']=7;
+expect(!ieb_sms_queue_lead(42), 'the same lead cannot be queued twice');
 expect(count($GLOBALS['scheduled'])===1, 'lead queued without HTTP');
 $before=count($GLOBALS['http']); ieb_sms_dispatch_lead(...$GLOBALS['scheduled'][0][2]);
 expect(count($GLOBALS['http'])===$before+1, 'worker sent signed request');
 expect($queue->dispatchOne($send,time())==='accepted', 'fake provider got lead alert');
 expect(count($messages)===2 && $messages[1][0]==='+15551230101' && strpos($messages[1][1],'Synthetic \\ Lead')!==false && strpos($messages[1][1],'+15551230102')!==false && strpos($messages[1][1],'Gutter Replacement')!==false, 'only administrator receives requested lead fields');
+expect(!ieb_sms_queue_lead(42), 'a previously handled lead cannot create another SMS');
 // Retries reuse the event and payload, but use fresh authentication nonces.
 $GLOBALS['meta'][43]=['first_name'=>'Retry','phone'=>'+15551230104','_hgm_form_id'=>8];
 expect(ieb_sms_queue_lead(43), 'second lead scheduled');
@@ -128,7 +135,7 @@ expect(!ieb_sms_request_enrollment('+15551230103',true), 'cannot reenroll until 
 $GLOBALS['network_down']=false;
 expect(ieb_sms_revoke_enrollment(), 'opt-out retry');
 expect(!ieb_sms_queue_lead(43), 'opt-out prevents later queue');
-expect(strpos(json_encode($GLOBALS['users']),IEB_SMS_SECRET)===false, 'secret never stored in user state');
+expect(strpos(json_encode($GLOBALS['options']),IEB_SMS_SECRET)===false, 'secret never stored in user state');
 expect(function_exists('ieb_sms_process_admin'), 'admin request handler exists');
 $GLOBALS['can']=false;
 expect(!ieb_sms_process_admin(['_wpnonce'=>'valid','operation'=>'request','phone'=>'+15551230101','opt_in'=>'1']), 'handler checks capability');
@@ -143,7 +150,7 @@ expect(ieb_sms_request_enrollment('+15551230106',true), 'new test enrollment');
 expect($verify->dispatch($send,time())==='accepted', 'new fake verification');
 preg_match('/\b([0-9]{6})\b/',end($messages)[1],$m); $GLOBALS['confirm_race']=true;
 expect(!ieb_sms_confirm_enrollment($m[1]), 'concurrent local revoke cannot be overwritten by confirmation');
-expect(($GLOBALS['users'][7][ieb_sms_state_key()]['status'] ?? '')==='revoked', 'revoked state survives confirmation race');
-$GLOBALS['users'][7][ieb_sms_state_key()]['revoke_ack']=true; $GLOBALS['write_race']=true;
+expect(($GLOBALS['options'][1][ieb_sms_state_key()]['status'] ?? '')==='revoked', 'revoked state survives confirmation race');
+$GLOBALS['options'][1][ieb_sms_state_key()]['revoke_ack']=true; $GLOBALS['write_race']=true;
 expect(!ieb_sms_request_enrollment('+15551230107',true), 'new request cannot overwrite concurrent revocation state');
 echo getenv('IEB_TEST_LOOPBACK_PORT') ? "PASS: loopback relay + fake provider; no external network\n" : "PASS: WP stubs + real authenticated relay and fake provider, no network\n";

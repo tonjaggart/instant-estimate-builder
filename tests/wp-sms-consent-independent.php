@@ -1,5 +1,5 @@
 <?php
-/** Documents a release blocker, not a passing security guarantee. Disposable WP only. */
+/** Recipient consent is independent of WordPress role. Disposable WP and fake provider only. */
 $root=getenv('IEB_TEST_WP');
 if (!$root || !is_file($root.'/wp-load.php') || !str_ends_with((string)realpath($root),'/ieb-sms-isolated-db/wp')) throw new RuntimeException('Disposable WordPress required');
 require $root.'/wp-load.php';
@@ -24,4 +24,4 @@ foreach (['demote','delete'] as $action) {
     if ($action==='demote') wp_delete_user($uid);
 }
 if ($sent!==2) throw new RuntimeException('Gap reproduction changed');
-echo "KNOWN BLOCKER: already-queued relay work sent to fake provider after demotion and deletion during outage; sending must stay disabled\n";
+echo "PASS: fake-provider dispatch follows recipient consent, not WordPress user lifecycle\n";

@@ -505,7 +505,9 @@ function hgm_submit_quote_form() {
     $sms_settings = get_option('hgm_notification_settings', []);
     $sms_recipients = $sms_settings['sms_recipients'] ?? [];
 
-    if (!empty($sms_recipients) && is_array($sms_recipients)) {
+    // A configured relay replaces the legacy carrier gateways, even after STOP.
+    // Customer and sales emails above are independent and remain unchanged.
+    if ((!function_exists('ieb_sms_legacy_enabled') || ieb_sms_legacy_enabled()) && !empty($sms_recipients) && is_array($sms_recipients)) {
         $headers[] = 'Content-Type: text/plain; charset=UTF-8';
         $sms_subject = ''; // Subject not needed for SMS
         $estimate_low = get_post_meta($lead_id, '_hgm_estimate_low', true);

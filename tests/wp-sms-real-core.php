@@ -45,10 +45,11 @@ require __DIR__.'/../sms-relay/auth.php'; require __DIR__.'/../sms-relay/queue.p
 $db=new PDO('sqlite::memory:'); $key=random_bytes(32); $queue=new IebSmsQueue($db,$key); $verify=new IebSmsVerification($db,$key);
 $queue->install(); ieb_auth_install_schema($db); $queue->configureInstallation(IEB_SMS_INSTALLATION,10,true);
 $api=new IebRelayApi($db,$queue,[IEB_SMS_INSTALLATION=>IEB_SMS_SECRET],$verify);
-$loseEventResponse=false;
+$loseEventResponse=false; $forceEventRejection=false;
 remove_all_filters('pre_http_request');
-add_filter('pre_http_request',function($pre,$args,$url) use ($api,&$loseEventResponse) {
+add_filter('pre_http_request',function($pre,$args,$url) use ($api,&$loseEventResponse,&$forceEventRejection) {
     if (!str_starts_with($url,'https://relay.example.test/v1/')) throw new RuntimeException('Outbound HTTP blocked');
+    if ($forceEventRejection && str_ends_with($url,'/v1/events')) return ['response'=>['code'=>409,'message'=>'Synthetic'],'body'=>'{}','headers'=>[],'cookies'=>[]];
     $h=$args['headers']; [$status,$body]=$api->handle('POST',parse_url($url,PHP_URL_PATH),['installation'=>$h['X-Installation'],'timestamp'=>$h['X-Timestamp'],'nonce'=>$h['X-Nonce'],'signature'=>$h['X-Signature']],$args['body'],time());
     if ($loseEventResponse && str_ends_with($url,'/v1/events')) { $loseEventResponse=false; return new WP_Error('test_response_lost'); }
     return ['response'=>['code'=>$status,'message'=>'Synthetic'],'body'=>json_encode($body),'headers'=>[],'cookies'=>[]];
@@ -73,15 +74,30 @@ $mails=[]; remove_all_filters('pre_wp_mail'); add_filter('pre_wp_mail',function(
 add_filter('wp_die_ajax_handler',fn()=>function(){throw new RuntimeException('AJAX_DONE');});
 add_filter('wp_doing_ajax',fn()=>true); define('HGM_PLUGIN_PATH',dirname(__DIR__).'/');
 require HGM_PLUGIN_PATH.'includes/handle-form.php';
-$form=wp_insert_post(['post_type'=>'instant_quote_form','post_title'=>'Synthetic gutters','post_status'=>'publish']);
+$form=wp_insert_post(['post_type'=>'instant_quote_form','post_title'=>'Synthetic gutters '.str_repeat('long title ',40),'post_status'=>'publish']);
 update_post_meta($form,'_hgm_form_data',wp_slash(wp_json_encode([['title'=>'Size','options'=>[['label'=>'Synthetic','low'=>10,'high'=>20]]]])));
-$_POST=wp_slash(['nonce'=>wp_create_nonce('hgm_nonce'),'first_name'=>'Synthetic','email'=>'client@example.invalid','phone'=>'+15550000102','zip_code'=>'00000','form_id'=>(string)$form,'_hgm_form_data'=>wp_json_encode(['step_1'=>['label'=>'Synthetic','min'=>10,'max'=>20]])]);
+$_POST=wp_slash(['nonce'=>wp_create_nonce('hgm_nonce'),'first_name'=>'José','email'=>'client@example.invalid','phone'=>'+15550000102','zip_code'=>'00000','form_id'=>(string)$form,'_hgm_form_data'=>wp_json_encode(['step_1'=>['label'=>'Synthetic','min'=>10,'max'=>20]])]);
 ob_start(); try { hgm_submit_quote_form(); throw new RuntimeException('handler failed to terminate'); } catch (RuntimeException $e) { if ($e->getMessage()!=='AJAX_DONE') throw $e; }
 $response=json_decode(ob_get_clean(),true); check_test(!empty($response['success']),'actual lead AJAX succeeded');
 $lead=(int)$wpdb->get_var("SELECT ID FROM {$wpdb->posts} WHERE post_type='hgm_lead' ORDER BY ID DESC LIMIT 1");
 check_test(count(get_post_meta($lead,'_ieb_sms_pending',false))===1,'durable outbox saved');
 check_test(count($messages)===1,'no provider dispatch in lead request');
 check_test(count($mails)===2,'customer and admin emails only; legacy gateway must not send when relay is configured');
+$badLead=wp_insert_post(['post_type'=>'hgm_lead','post_status'=>'publish']);
+update_post_meta($badLead,'first_name','Synthetic'); update_post_meta($badLead,'phone',str_repeat('9',200)); update_post_meta($badLead,'_hgm_form_id',$form);
+check_test(!ieb_sms_queue_lead($badLead),'unformattable lead rejected locally');
+$failure=get_post_meta($badLead,'_ieb_sms_failure',true);
+check_test(($failure['reason'] ?? '')==='format' && !str_contains(wp_json_encode($failure),str_repeat('9',20)),'safe failure stored durably');
+ob_start(); ieb_sms_render_settings(); $failureHtml=ob_get_clean();
+check_test(str_contains($failureHtml,'Lead #'.$badLead) && str_contains($failureHtml,'Review the lead'),'admin can find the failed lead');
+$rejectLead=wp_insert_post(['post_type'=>'hgm_lead','post_status'=>'publish']);
+update_post_meta($rejectLead,'first_name','Synthetic'); update_post_meta($rejectLead,'phone','+15555550103'); update_post_meta($rejectLead,'_hgm_form_id',$form);
+check_test(ieb_sms_queue_lead($rejectLead),'rejection fixture queued');
+$forceEventRejection=true; ieb_sms_dispatch_lead($rejectLead,1,0); $forceEventRejection=false;
+$failure=get_post_meta($rejectLead,'_ieb_sms_failure',true);
+check_test(($failure['reason'] ?? '')==='relay_rejected' && ($failure['http_status'] ?? 0)===409 && get_post_meta($rejectLead,'_ieb_sms_pending',false)===[],'permanent rejection recorded before outbox deletion');
+ob_start(); ieb_sms_render_settings(); $failureHtml=ob_get_clean();
+check_test(str_contains($failureHtml,'Lead #'.$rejectLead) && str_contains($failureHtml,'relay rejected'),'admin sees relay rejection');
 $retryLead=wp_insert_post(['post_type'=>'hgm_lead','post_status'=>'publish']);
 update_post_meta($retryLead,'first_name','Retry'); update_post_meta($retryLead,'phone','+15555550102'); update_post_meta($retryLead,'_hgm_form_id',$form);
 check_test(ieb_sms_queue_lead($retryLead),'real MySQL retry fixture queued');
@@ -98,7 +114,7 @@ register_shutdown_function(function() use ($lead,$queue,$fake,&$messages) {
     try {
         check_test(count(get_post_meta($lead,'_ieb_sms_pending',false))===0,'real cron dispatched and removed outbox');
         check_test($queue->dispatchOne($fake,time())==='accepted','fake provider received cron-dispatched alert');
-        check_test(count($messages)===3 && str_contains($messages[2][1],'Synthetic gutters'),'expected synthetic lead message');
+        check_test(count($messages)===3 && str_contains($messages[2][1],'Synthetic gutters') && str_contains($messages[2][1],'José') && str_contains($messages[2][1],'+15550000102') && ieb_sms_single_segment($messages[2][1]),'accented long-title lead retains phone in one segment');
         echo "PASS: real WP admin, lead AJAX, MySQL outbox, core WP-Cron, authenticated relay and fake provider; HTTP/mail intercepted\n";
     } catch (Throwable $e) { fwrite(STDERR,"FAIL: ".$e->getMessage()."\n"); exit(1); }
 });

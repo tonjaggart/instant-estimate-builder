@@ -1,5 +1,6 @@
 <?php
 /** Private, opt-in relay client. No network or sender is enabled by default. */
+require_once __DIR__.'/../sms-relay/lead-format.php';
 function ieb_sms_configured() {
     if (!defined('IEB_SMS_RELAY_HOST') || !defined('IEB_SMS_INSTALLATION') || !defined('IEB_SMS_SECRET')) return false;
     return is_string(IEB_SMS_RELAY_HOST) && (bool) preg_match('/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\z/D', IEB_SMS_RELAY_HOST)
@@ -92,13 +93,21 @@ function ieb_sms_revoke_enrollment() {
     if (!ieb_sms_change_state($old,$state)) return false;
     return true;
 }
+/** Failure records deliberately contain no lead details or relay response bodies. */
+function ieb_sms_record_failure($lead_id, $reason, $status=0) {
+    $allowed=['format','relay_rejected','expired','retry_exhausted','schedule_failed'];
+    if (!in_array($reason,$allowed,true)) return;
+    $failure=['lead_id'=>(int)$lead_id,'reason'=>$reason,'http_status'=>(int)$status,'time'=>time()];
+    update_post_meta((int)$lead_id,'_ieb_sms_failure',$failure);
+    update_option('_ieb_sms_last_failure',$failure,false);
+}
 /** Called after normal email notifications. No relay I/O in the lead request. */
 function ieb_sms_queue_lead($lead_id) {
     if (!ieb_sms_configured()) return false;
-    $lead=['name'=>(string)get_post_meta($lead_id,'first_name',true),'phone'=>(string)get_post_meta($lead_id,'phone',true),'service'=>(string)get_the_title((int)get_post_meta($lead_id,'_hgm_form_id',true))];
-    foreach ($lead as $value) if (trim($value)==='' || strlen($value)>160 || preg_match('/[\x00-\x1f\x7f]/',$value)) return false;
     $state=get_option(ieb_sms_state_key(),false);
     if (!is_array($state) || ($state['status'] ?? '')!=='verified' || empty($state['request_id']) || empty($state['phone'])) return false;
+    $lead=ieb_sms_format_lead(['name'=>(string)get_post_meta($lead_id,'first_name',true),'phone'=>(string)get_post_meta($lead_id,'phone',true),'service'=>(string)get_the_title((int)get_post_meta($lead_id,'_hgm_form_id',true))]);
+    if ($lead===false) { ieb_sms_record_failure($lead_id,'format'); return false; }
     global $wpdb;
     $lock='ieb_sms_'.substr(hash('sha256',DB_NAME.'|'.$wpdb->postmeta.'|'.$lead_id),0,48);
     if ((string)$wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 3)', $lock)) !== '1') return false;
@@ -109,6 +118,7 @@ function ieb_sms_queue_lead($lead_id) {
         $job=null;
         foreach (get_post_meta($lead_id,'_ieb_sms_pending',false) as $candidate) {
             if (ieb_sms_job_fresh($candidate)) { $job=$candidate; break; }
+            ieb_sms_record_failure($lead_id,'expired');
             delete_post_meta($lead_id,'_ieb_sms_pending',wp_slash($candidate));
             return false;
         }
@@ -118,13 +128,16 @@ function ieb_sms_queue_lead($lead_id) {
         }
         // Marker contains no lead details and prevents re-enqueue after dispatch.
         if (!add_post_meta($lead_id,'_ieb_sms_once','1',true)) return false;
-        return (bool)wp_schedule_single_event(time()+1,'ieb_sms_dispatch_lead',[(int)$lead_id,1,0]);
+        $scheduled=(bool)wp_schedule_single_event(time()+1,'ieb_sms_dispatch_lead',[(int)$lead_id,1,0]);
+        if (!$scheduled) ieb_sms_record_failure($lead_id,'schedule_failed');
+        return $scheduled;
     } finally { $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock)); }
 }
 function ieb_sms_dispatch_lead($lead_id,$uid,$attempt=0) {
     foreach (get_post_meta($lead_id,'_ieb_sms_pending',false) as $job) {
         if (!is_array($job) || ($job['uid'] ?? 0)!==(int)$uid) continue;
         if (!ieb_sms_job_fresh($job) || get_post_type($lead_id)!=='hgm_lead' || in_array(get_post_status($lead_id),[false,'trash','auto-draft','inherit'],true)) {
+            if (!ieb_sms_job_fresh($job) && get_post_type($lead_id)==='hgm_lead') ieb_sms_record_failure($lead_id,'expired');
             delete_post_meta($lead_id,'_ieb_sms_pending',wp_slash($job)); continue;
         }
         if (!ieb_sms_configured()) continue;
@@ -134,8 +147,11 @@ function ieb_sms_dispatch_lead($lead_id,$uid,$attempt=0) {
         }
         $status=ieb_sms_post('/v1/events',['event'=>$job['event'],'phone'=>$job['phone'],'lead'=>$job['lead'],'request_id'=>$job['request_id']]);
         if ($status===0 || $status===429 || $status>=500) {
-            if ($attempt<7) wp_schedule_single_event(time()+min(3600,60*(2**$attempt)),'ieb_sms_dispatch_lead',[(int)$lead_id,(int)$uid,(int)$attempt+1]);
+            if ($attempt<7) {
+                if (!wp_schedule_single_event(time()+min(3600,60*(2**$attempt)),'ieb_sms_dispatch_lead',[(int)$lead_id,(int)$uid,(int)$attempt+1])) ieb_sms_record_failure($lead_id,'schedule_failed');
+            } else ieb_sms_record_failure($lead_id,'retry_exhausted',$status);
         } else {
+            if ($status!==200) ieb_sms_record_failure($lead_id,'relay_rejected',$status);
             // Relay accepted or permanently rejected; repeated event IDs remain idempotent.
             delete_post_meta($lead_id,'_ieb_sms_pending',wp_slash($job));
         }
@@ -154,6 +170,7 @@ function ieb_sms_recover_pending() {
     foreach ($rows as $row) {
         $job = maybe_unserialize($row->meta_value);
         if (!ieb_sms_job_fresh($job) || $row->post_type!=='hgm_lead' || in_array($row->post_status,[null,'trash','auto-draft','inherit'],true) || empty($job['uid'])) {
+            if (!ieb_sms_job_fresh($job) && $row->post_type==='hgm_lead' && !in_array($row->post_status,[null,'trash','auto-draft','inherit'],true)) ieb_sms_record_failure((int)$row->post_id,'expired');
             delete_metadata_by_mid('post',(int)$row->meta_id);
         } elseif (ieb_sms_configured()) wp_schedule_single_event(time()+1,'ieb_sms_dispatch_lead',[(int)$row->post_id,(int)$job['uid'],0]);
     }
@@ -180,6 +197,13 @@ function ieb_sms_process_admin($post) {
 function ieb_sms_render_settings() {
     if (!ieb_sms_allowed_user()) return;
     echo '<div class="hgm-dashboard-card ieb-notifications-card"><h2>Administrator SMS alerts</h2>';
+    $failure=get_option('_ieb_sms_last_failure',false);
+    if (is_array($failure) && !empty($failure['lead_id'])) {
+        $failureLead=(int)$failure['lead_id']; $reason=(string)($failure['reason'] ?? '');
+        $descriptions=['format'=>'could not format the lead','relay_rejected'=>'relay rejected the alert','expired'=>'alert expired before relay acceptance','retry_exhausted'=>'relay retries were exhausted','schedule_failed'=>'dispatch could not be scheduled'];
+        $description=$descriptions[$reason] ?? 'alert encountered a problem';
+        echo '<p><strong>Most recent SMS alert issue:</strong> Lead #'.$failureLead.' — '.esc_html($description).' ('.esc_html(gmdate('Y-m-d H:i', (int)($failure['time'] ?? 0))).' UTC). The issue may have since recovered. <a href="'.esc_url(admin_url('admin.php?page=instant-estimate-lead&id='.$failureLead)).'">Review the lead</a> and contact support@taggartmediagroup.com if needed. Relay acceptance does not confirm delivery.</p>';
+    }
     if (!ieb_sms_configured()) { echo '<p>The SMS relay is not configured. This site cannot initiate or manage alerts; previously queued relay messages may still be processed. Reply STOP or contact support@taggartmediagroup.com for help.</p></div>'; return; }
     $state=get_option(ieb_sms_state_key(),false); $status=is_array($state)?($state['status'] ?? ''):'';
     if ($status==='verified') echo '<p>Number '.esc_html($state['phone'] ?? '').' was verified. Delivery is not guaranteed; STOP or relay restrictions may prevent messages. Reply STOP to opt out or HELP for help.</p>';

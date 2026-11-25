@@ -36,9 +36,11 @@ function wp_slash($v) { return is_array($v) ? array_map('wp_slash',$v) : (is_str
 function admin_url($path) { return 'https://wp.example.test/wp-admin/'.$path; }
 function esc_url($s) { return htmlspecialchars($s, ENT_QUOTES); }
 function esc_attr($s) { return htmlspecialchars($s, ENT_QUOTES); }
+function esc_html($s) { return htmlspecialchars($s, ENT_QUOTES); }
 function wp_nonce_field($action) { echo '<input name="_wpnonce" value="valid">'; }
 function wp_safe_remote_post($url,$args) {
     $GLOBALS['http'][]=[$url,$args];
+    if (!empty($GLOBALS['forced_status'])) return ['response'=>['code'=>$GLOBALS['forced_status']],'body'=>'{}'];
     if (!empty($GLOBALS['network_down'])) return ['response'=>['code'=>503],'body'=>'{}'];
     if (!empty($GLOBALS['invalid_success'])) return ['response'=>['code'=>200],'body'=>'{}'];
     if ($port=getenv('IEB_TEST_LOOPBACK_PORT')) {
@@ -67,7 +69,7 @@ function get_post_meta($id,$key,$single=true) { $v=$GLOBALS['meta'][$id][$key] ?
 function update_post_meta($id,$key,$value) { $GLOBALS['meta'][$id][$key]=wp_unslash($value); return true; }
 function add_post_meta($id,$key,$value,$unique=false) { if ($unique && !empty($GLOBALS['meta'][$id][$key])) return false; $GLOBALS['meta'][$id][$key][]=wp_unslash($value); return true; }
 function delete_post_meta($id,$key,$value) { $value=wp_unslash($value); $GLOBALS['meta'][$id][$key]=array_values(array_filter($GLOBALS['meta'][$id][$key] ?? [],function($v) use ($value) { return $v!==$value; })); return true; }
-function get_the_title($id) { return 'Gutter Replacement'; }
+function get_the_title($id) { return $GLOBALS['test_title'] ?? 'Gutter Replacement'; }
 function get_post_type($id) { return 'hgm_lead'; }
 function get_post_status($id) { return 'publish'; }
 function expect($value,$message) { if (!$value) { fwrite(STDERR,"FAIL: $message\n"); exit(1); } }
@@ -127,6 +129,29 @@ expect(function_exists('ieb_sms_recover_pending'), 'recovery sweep exists');
 ieb_sms_recover_pending();
 $recovered=end($GLOBALS['scheduled']); expect($recovered[2][0]===44, 'sweep recovers failed initial schedule');
 ieb_sms_dispatch_lead(...$recovered[2]); expect($queue->dispatchOne($send,time())==='accepted', 'recovered event delivers to fake provider');
+$GLOBALS['test_title']=str_repeat('Very long synthetic service ',30);
+$GLOBALS['meta'][45]=['first_name'=>'José','phone'=>'+15555550109','_hgm_form_id'=>8];
+expect(ieb_sms_queue_lead(45), 'accent and long title queued');
+ieb_sms_dispatch_lead(45,1,0);
+expect($queue->dispatchOne($send,time())==='accepted', 'accent and long title reach fake provider');
+$body=end($messages)[1]; expect(str_contains($body,'José') && str_contains($body,'+15555550109'), 'name and full phone preserved');
+$GLOBALS['test_title']=str_repeat('屋根😀',40);
+$GLOBALS['meta'][48]=['first_name'=>'李😀','phone'=>'+15555550111','_hgm_form_id'=>8];
+expect(ieb_sms_queue_lead(48),'Unicode lead queued');
+ieb_sms_dispatch_lead(48,1,0);
+expect($queue->dispatchOne($send,time())==='accepted','Unicode lead reaches fake provider');
+$body=end($messages)[1]; expect(str_contains($body,'李😀') && str_contains($body,'+15555550111') && ieb_sms_single_segment($body),'Unicode and full phone fit one segment');
+$GLOBALS['meta'][46]=['first_name'=>'Invalid','phone'=>str_repeat('9',200),'_hgm_form_id'=>8];
+expect(!ieb_sms_queue_lead(46), 'unrepresentable phone rejected');
+expect(!empty($GLOBALS['meta'][46]['_ieb_sms_failure']), 'invalid format leaves safe durable failure');
+$GLOBALS['test_title']='Gutter Replacement';
+$GLOBALS['meta'][47]=['first_name'=>'Failure','phone'=>'+15555550110','_hgm_form_id'=>8];
+expect(ieb_sms_queue_lead(47), 'permanent failure fixture queued');
+$GLOBALS['forced_status']=409; ieb_sms_dispatch_lead(47,1,0); unset($GLOBALS['forced_status']);
+expect(!empty($GLOBALS['meta'][47]['_ieb_sms_failure']), 'permanent relay rejection recorded');
+ob_start(); ieb_sms_render_settings(); $failureHtml=ob_get_clean();
+expect(str_contains($failureHtml,'SMS alert') && str_contains($failureHtml,'page=instant-estimate-lead&amp;id=47'), 'admin sees actionable failed lead');
+expect(!str_contains(json_encode($GLOBALS['meta'][47]['_ieb_sms_failure']),'+15555550110'), 'failure diagnostics omit PII');
 $GLOBALS['network_down']=true;
 expect(!ieb_sms_revoke_enrollment(), 'failed remote revoke is reported');
 $last=end($GLOBALS['http']); $revoke_data=json_decode($last[1]['body'],true); expect(isset($revoke_data['request_id']) && $revoke_data['request_id']===$request_body['request_id'], 'opt-out tombstones pending verification id');

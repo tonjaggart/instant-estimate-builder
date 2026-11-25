@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/lead-format.php';
 /** Encrypted SQLite queue for the separately hosted relay; not a WordPress component. */
 final class IebSmsQueue {
     private $db; private $key; private $hashKey;
@@ -124,20 +125,11 @@ final class IebSmsQueue {
         if (!$this->allowed($row['installation'],$row['phone_hash'])) return false;
         return (bool)$this->query('SELECT 1 FROM ieb_sms_message_epochs m JOIN ieb_sms_consent_epochs c ON c.epoch=m.epoch WHERE m.message_id=? AND c.installation=? AND c.phone_hash=?',[$row['id'],$row['installation'],$row['phone_hash']])->fetchColumn();
     }
-    /** Conservative: count ASCII GSM escapes; treat any other character as Unicode. */
     private function singleSegment(string $message): bool {
-        if (!preg_match('//u', $message)) return false;
-        $chars=preg_split('//u',$message,-1,PREG_SPLIT_NO_EMPTY);
-        $gsm=true; $septets=0; $units=0;
-        foreach ($chars as $char) {
-            $len=strlen($char); $units += $len===4 ? 2 : 1;
-            if ($len!==1 || ord($char)<32 || ord($char)>126 || $char==='`') $gsm=false;
-            $septets += strpos('^{}\\[~]|', $char)!==false ? 2 : 1;
-        }
-        return $gsm ? $septets<=160 : $units<=70;
+        return ieb_sms_single_segment($message);
     }
     private function messageText(array $lead): string {
-        return 'Taggart Media Group - New estimate: '.$lead['name'].' | '.$lead['phone'].' | '.$lead['service'];
+        return ieb_sms_message_text($lead);
     }
     function enqueue(string $id, string $event, string $phone, array $lead, int $now, ?string $requestId=null): string {
         $this->checkId($id); $this->checkId($event); $hash=$this->phash($phone);

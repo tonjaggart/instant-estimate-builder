@@ -34,7 +34,17 @@ function ieb_sms_request_enrollment($phone, $optin) {
     try {
         if (!is_array($state) || ($state['status'] ?? '') !== 'pending' || ($state['phone'] ?? '') !== $phone) {
             $old=$state; $state=['status'=>'pending','phone'=>$phone,'request_id'=>bin2hex(random_bytes(16))];
-            $saved=is_array($old) ? update_user_meta($uid,ieb_sms_state_key(),$state,$old) : add_user_meta($uid,ieb_sms_state_key(),$state,true);
+            if (is_array($old)) {
+                $saved=update_user_meta($uid,ieb_sms_state_key(),$state,$old);
+            } else {
+                // WordPress's unique=true checks then inserts without a unique SQL index.
+                // Serialize only initial creation, and fail closed on lock errors/timeouts.
+                global $wpdb;
+                $lock='ieb_sms_'.substr(hash('sha256', DB_NAME.'|'.$wpdb->usermeta.'|'.ieb_sms_state_key().'|'.$uid),0,48);
+                if ((string)$wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 3)', $lock)) !== '1') return false;
+                try { $saved=add_user_meta($uid,ieb_sms_state_key(),$state,true); }
+                finally { $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock)); }
+            }
             if (!$saved || get_user_meta($uid,ieb_sms_state_key(),true) !== $state) return false;
         }
         return ieb_sms_post('/v1/verification/request',['request_id'=>$state['request_id'],'phone'=>$phone,'actor'=>'admin_'.$uid,'notice'=>'admin-sms-v2','opt_in'=>true])===202;
@@ -104,10 +114,19 @@ function ieb_sms_dispatch_lead($lead_id,$uid,$attempt=0) {
 /** Repair lost schedules and restart exhausted transient retries from the durable outbox. */
 function ieb_sms_recover_pending() {
     if (!ieb_sms_configured()) return;
-    $ids=get_posts(['post_type'=>'hgm_lead','post_status'=>'any','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_ieb_sms_pending','suppress_filters'=>true]);
-    foreach ($ids as $lead_id) foreach (get_post_meta($lead_id,'_ieb_sms_pending',false) as $job) {
-        if (is_array($job) && !empty($job['uid'])) wp_schedule_single_event(time()+1,'ieb_sms_dispatch_lead',[(int)$lead_id,(int)$job['uid'],0]);
+    global $wpdb;
+    $cursor = max(0, (int) get_option('_ieb_sms_recovery_cursor', 0));
+    // Keyset pagination bounds each pass even when one lead has many recipients.
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT m.meta_id, m.post_id, m.meta_value FROM {$wpdb->postmeta} m INNER JOIN {$wpdb->posts} p ON p.ID=m.post_id WHERE m.meta_key=%s AND m.meta_id>%d AND p.post_type=%s AND p.post_status NOT IN ('trash','auto-draft','inherit') ORDER BY m.meta_id ASC LIMIT 100",
+        '_ieb_sms_pending', $cursor, 'hgm_lead'
+    ));
+    if (!is_array($rows) || !empty($wpdb->last_error)) return; // Preserve cursor on database failure.
+    foreach ($rows as $row) {
+        $job = maybe_unserialize($row->meta_value);
+        if (is_array($job) && !empty($job['uid'])) wp_schedule_single_event(time()+1,'ieb_sms_dispatch_lead',[(int)$row->post_id,(int)$job['uid'],0]);
     }
+    update_option('_ieb_sms_recovery_cursor', count($rows) === 100 ? (int) end($rows)->meta_id : 0, false);
 }
 function ieb_sms_schedule_recovery() {
     if (ieb_sms_configured() && !wp_next_scheduled('ieb_sms_recover_pending')) wp_schedule_event(time()+300,'hourly','ieb_sms_recover_pending');

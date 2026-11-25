@@ -2,6 +2,23 @@
 // Isolated WP function stubs; the actual signed relay API and encrypted queue run in memory.
 error_reporting(E_ALL);
 function add_action(...$args) {}
+define('DB_NAME','stub');
+class SmsStubDb {
+    public $usermeta='usermeta', $postmeta='postmeta', $posts='posts';
+    function prepare($query,...$args) { return [$query,$args]; }
+    function get_var($query) { return '1'; }
+    function get_results($query) {
+        $cursor=$query[1][1]; $rows=[]; $id=0;
+        foreach ($GLOBALS['meta'] ?? [] as $lead=>$values) foreach ($values['_ieb_sms_pending'] ?? [] as $job) {
+            ++$id; if ($id>$cursor) $rows[]=(object)['meta_id'=>$id,'post_id'=>$lead,'meta_value'=>serialize($job)];
+        }
+        return array_slice($rows,0,100);
+    }
+}
+$GLOBALS['wpdb']=new SmsStubDb();
+function get_option($k,$default=false) { return $GLOBALS['options'][$k] ?? $default; }
+function update_option($k,$v,$autoload=null) { $GLOBALS['options'][$k]=$v; return true; }
+function maybe_unserialize($v) { return unserialize($v); }
 function get_current_user_id() { return 7; }
 function get_current_blog_id() { return $GLOBALS['blog_id'] ?? 1; }
 function current_user_can($cap) { return !empty($GLOBALS['can']); }

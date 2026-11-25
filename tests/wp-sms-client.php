@@ -10,7 +10,7 @@ class SmsStubDb {
     function get_results($query) {
         $cursor=$query[1][1]; $rows=[]; $id=0;
         foreach ($GLOBALS['meta'] ?? [] as $lead=>$values) foreach ($values['_ieb_sms_pending'] ?? [] as $job) {
-            ++$id; if ($id>$cursor) $rows[]=(object)['meta_id'=>$id,'post_id'=>$lead,'meta_value'=>serialize($job)];
+            ++$id; if ($id>$cursor) $rows[]=(object)['meta_id'=>$id,'post_id'=>$lead,'meta_value'=>serialize($job),'post_type'=>'hgm_lead','post_status'=>'publish'];
         }
         return array_slice($rows,0,100);
     }
@@ -66,6 +66,8 @@ function update_post_meta($id,$key,$value) { $GLOBALS['meta'][$id][$key]=wp_unsl
 function add_post_meta($id,$key,$value) { $GLOBALS['meta'][$id][$key][]=wp_unslash($value); return true; }
 function delete_post_meta($id,$key,$value) { $value=wp_unslash($value); $GLOBALS['meta'][$id][$key]=array_values(array_filter($GLOBALS['meta'][$id][$key] ?? [],function($v) use ($value) { return $v!==$value; })); return true; }
 function get_the_title($id) { return 'Gutter Replacement'; }
+function get_post_type($id) { return 'hgm_lead'; }
+function get_post_status($id) { return 'publish'; }
 function expect($value,$message) { if (!$value) { fwrite(STDERR,"FAIL: $message\n"); exit(1); } }
 $client=__DIR__.'/../includes/sms-client.php'; if (is_file($client)) require $client;
 expect(function_exists('ieb_sms_request_enrollment'), 'enrollment function is implemented');

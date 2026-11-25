@@ -30,7 +30,7 @@ $wpdb->query("DELETE FROM {$wpdb->postmeta}"); $wpdb->query("DELETE FROM {$wpdb-
 delete_option('cron'); delete_option('_ieb_sms_recovery_cursor');
 for ($i=0;$i<105;$i++) {
     $id=wp_insert_post(['post_type'=>'hgm_lead','post_status'=>'publish','post_title'=>'Synthetic']);
-    add_post_meta($id,'_ieb_sms_pending',['uid'=>1]);
+    add_post_meta($id,'_ieb_sms_pending',['uid'=>1,'created_at'=>time()]);
 }
 ieb_sms_recover_pending();
 $events=0; foreach (_get_cron_array() as $cron) $events+=count($cron['ieb_sms_dispatch_lead'] ?? []);
@@ -47,10 +47,12 @@ require __DIR__.'/../sms-relay/auth.php'; require __DIR__.'/../sms-relay/queue.p
 $db=new PDO('sqlite::memory:'); $key=random_bytes(32); $queue=new IebSmsQueue($db,$key); $verify=new IebSmsVerification($db,$key);
 $queue->install(); ieb_auth_install_schema($db); $queue->configureInstallation(IEB_SMS_INSTALLATION,10,true);
 $api=new IebRelayApi($db,$queue,[IEB_SMS_INSTALLATION=>IEB_SMS_SECRET],$verify);
+$loseEventResponse=false;
 remove_all_filters('pre_http_request');
-add_filter('pre_http_request',function($pre,$args,$url) use ($api) {
+add_filter('pre_http_request',function($pre,$args,$url) use ($api,&$loseEventResponse) {
     if (!str_starts_with($url,'https://relay.example.test/v1/')) throw new RuntimeException('Outbound HTTP blocked');
     $h=$args['headers']; [$status,$body]=$api->handle('POST',parse_url($url,PHP_URL_PATH),['installation'=>$h['X-Installation'],'timestamp'=>$h['X-Timestamp'],'nonce'=>$h['X-Nonce'],'signature'=>$h['X-Signature']],$args['body'],time());
+    if ($loseEventResponse && str_ends_with($url,'/v1/events')) { $loseEventResponse=false; return new WP_Error('test_response_lost'); }
     return ['response'=>['code'=>$status,'message'=>'Synthetic'],'body'=>json_encode($body),'headers'=>[],'cookies'=>[]];
 },PHP_INT_MIN,3);
 $messages=[]; $fake=function($to,$body) use (&$messages) { $messages[]=[$to,$body]; return 'accepted'; };
@@ -75,13 +77,23 @@ $lead=(int)$wpdb->get_var("SELECT ID FROM {$wpdb->posts} WHERE post_type='hgm_le
 check_test(count(get_post_meta($lead,'_ieb_sms_pending',false))===1,'durable outbox saved');
 check_test(count($messages)===1,'no provider dispatch in lead request');
 check_test(count($mails)===2,'customer and admin emails were intercepted');
+$retryLead=wp_insert_post(['post_type'=>'hgm_lead','post_status'=>'publish']);
+update_post_meta($retryLead,'first_name','Retry'); update_post_meta($retryLead,'phone','+15555550102'); update_post_meta($retryLead,'_hgm_form_id',$form);
+check_test(ieb_sms_queue_lead($retryLead),'real MySQL retry fixture queued');
+$original=get_post_meta($retryLead,'_ieb_sms_pending',false)[0];
+check_test(isset($original['created_at']) && is_int($original['created_at']),'durable job has technical expiry timestamp');
+$loseEventResponse=true; ieb_sms_dispatch_lead($retryLead,1,0);
+check_test(get_post_meta($retryLead,'_ieb_sms_pending',false)===[$original],'lost response retains original immutable outbox');
+ieb_sms_dispatch_lead($retryLead,1,1);
+check_test(get_post_meta($retryLead,'_ieb_sms_pending',false)===[],'idempotent retry removes acknowledged outbox');
+check_test($queue->dispatchOne($fake,time())==='accepted' && $queue->dispatchOne($fake,time())==='empty','lost response did not duplicate provider delivery');
 // Let the single event become due, then run WordPress's real cron entrypoint.
 $_POST=[]; remove_all_filters('wp_doing_ajax'); sleep(2);
 register_shutdown_function(function() use ($lead,$queue,$fake,&$messages) {
     try {
         check_test(count(get_post_meta($lead,'_ieb_sms_pending',false))===0,'real cron dispatched and removed outbox');
         check_test($queue->dispatchOne($fake,time())==='accepted','fake provider received cron-dispatched alert');
-        check_test(count($messages)===2 && str_contains($messages[1][1],'Synthetic gutters'),'expected synthetic lead message');
+        check_test(count($messages)===3 && str_contains($messages[2][1],'Synthetic gutters'),'expected synthetic lead message');
         echo "PASS: real WP admin, lead AJAX, MySQL outbox, core WP-Cron, authenticated relay and fake provider; HTTP/mail intercepted\n";
     } catch (Throwable $e) { fwrite(STDERR,"FAIL: ".$e->getMessage()."\n"); exit(1); }
 });

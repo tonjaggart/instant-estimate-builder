@@ -356,17 +356,17 @@ function ieb_sms_render_settings() {
         $description=$descriptions[$reason] ?? 'alert encountered a problem';
         echo '<p><strong>Most recent SMS alert issue:</strong> Lead #'.$failureLead.' — '.esc_html($description).' ('.esc_html(gmdate('Y-m-d H:i', (int)($failure['time'] ?? 0))).' UTC). The issue may have since recovered. <a href="'.esc_url(admin_url('admin.php?page=instant-estimate-lead&id='.$failureLead)).'">Review the lead</a> and contact support@taggartmediagroup.com if needed. Relay acceptance does not confirm delivery.</p>';
     }
-    if (!ieb_sms_configured()) { echo '<p>The SMS relay is not configured. This site cannot initiate or manage alerts; previously queued relay messages may still be processed. Reply STOP or contact support@taggartmediagroup.com for help.</p></div>'; return; }
+    if (!ieb_sms_configured()) echo '<div class="notice notice-warning inline"><p><strong>The SMS relay is not configured.</strong> Verification requests and new alerts cannot be sent until it is configured; numbers entered here will not be saved. Previously queued relay messages may still be processed. Reply STOP or contact support@taggartmediagroup.com for help.</p></div>';
     $states=ieb_sms_recipients();
     if (!$states) echo '<p>No numbers enrolled. Each recipient must agree and verify their own phone.</p>';
-    if (isset($_GET['sms_result']) && $_GET['sms_result']==='error') echo '<p>Action could not be confirmed. Check the number’s status, retry, or contact support@taggartmediagroup.com. A removal that could not reach the relay may not cancel messages already queued there.</p>';
+    if (isset($_GET['sms_result']) && $_GET['sms_result']==='error') echo '<div class="notice notice-error inline" role="alert"><p>Action could not be confirmed. Check the number’s status, retry, or contact support@taggartmediagroup.com. A removal that could not reach the relay may not cancel messages already queued there.</p></div>';
     elseif (isset($_GET['sms_result']) && $_GET['sms_result']==='removed') echo '<p>Number is no longer listed. A message already being sent cannot be recalled.</p>';
     elseif (isset($_GET['sms_result']) && $_GET['sms_result']==='ok') echo '<p>Action processed. Requesting a code does not confirm delivery or enrollment.</p>';
     foreach ($states as $id=>$state) {
         $status=$state['status'] ?? ''; $phone=$state['phone'] ?? '';
         echo '<section><h3>'.esc_html($phone).'</h3>';
         if ($status==='verified') echo '<p>Verified. Delivery is not guaranteed; STOP or relay restrictions may prevent messages. Reply STOP to opt out or HELP for help.</p>';
-        elseif ($status==='pending') echo '<p>Verification requested. Enter the code sent to this number. To request a new code after expiry, remove the number and enroll again.</p>';
+        elseif ($status==='pending') echo '<p>Verification is pending. If you received a code, enter it below. If the request failed or the code expired, remove the number and enroll again.</p>';
         elseif ($status==='revoked') echo '<p>Removal is not complete. Alerts are disabled locally, but messages already queued at the relay may still be sent. Retry removal, reply STOP, or contact support@taggartmediagroup.com.</p>';
         if ($status==='pending') {
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">'; wp_nonce_field('ieb_sms_enrollment');
@@ -380,7 +380,7 @@ function ieb_sms_render_settings() {
     }
     echo '<h3>Add a number</h3><form method="post" action="'.esc_url(admin_url('admin-post.php')).'">'; wp_nonce_field('ieb_sms_enrollment');
     echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="request">';
-    echo '<p><label for="ieb-sms-phone">Your mobile number</label><br><input id="ieb-sms-phone" name="phone" type="tel" placeholder="+12025550123" required></p>';
+    echo '<p><label for="ieb-sms-phone">Your mobile number</label><br><input id="ieb-sms-phone" name="phone" type="tel" autocomplete="tel" placeholder="10-digit mobile number" class="regular-text" required></p>';
     echo '<p><label><input type="checkbox" name="opt_in" value="1" required> I am the user of this number. I agree to receive recurring Instant Estimate Builder estimate-request text alerts from Taggart Media Group LLC at the mobile number I provide. Alerts may include lead contact details. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to unsubscribe.</label></p>';
     echo '<p><a href="https://taggartmediagroup.com/instant-estimate-builder-sms-alert-terms/">SMS Alert Terms</a> | <a href="https://taggartmediagroup.com/privacy-policy/">Privacy Policy</a>. Help: support@taggartmediagroup.com.</p>';
     echo '<button type="submit" class="button button-primary">Request verification code</button></form>';

@@ -141,6 +141,11 @@ final class IebSmsQueue {
     private function messageText(array $lead): string {
         return ieb_sms_message_text($lead);
     }
+    private function exactMessageWithinLimit(string $message): bool {
+        // Queue is rolled out first; until its shared formatter is replaced,
+        // continue enforcing the older, stricter one-segment fence.
+        return function_exists('ieb_sms_within_two_segments') ? ieb_sms_within_two_segments($message) : $this->singleSegment($message);
+    }
     private function legacyMessageText(array $lead): string {
         // Independent of the shared formatter so relay queue.php can be deployed
         // first without changing the handling of any already-encrypted jobs.
@@ -199,7 +204,7 @@ final class IebSmsQueue {
             }
         });
     }
-    /** 'retryable' requires proven non-acceptance; Twilio adapter never returns it. */
+    /** Every provider invocation consumes one alert, including uncertain failures. */
     function dispatchOne(callable $provider, int $now): string {
         $claim=$this->atomic(function() use($now) {
             $row=$this->query("SELECT * FROM ieb_sms_messages WHERE state IN ('queued','retry') AND due_at<=? ORDER BY id LIMIT 1",[$now])->fetch(PDO::FETCH_ASSOC);
@@ -238,7 +243,7 @@ final class IebSmsQueue {
             $format=$data['format']??null;
             $message=$format==='pilot-six-v1' ? ieb_sms_pilot_six_line($lead) : ($format==='exact-v1' ? false : ($format==='compact-v1' ? $this->messageText($lead) : $this->legacyMessageText($lead)));
             // Fence old queue rows created before the admission restriction too.
-            if (!is_string($message) || !$this->singleSegment($message)) {
+            if (!is_string($message) || !($format==='pilot-six-v1' ? $this->exactMessageWithinLimit($message) : $this->singleSegment($message))) {
                 $this->query("UPDATE ieb_sms_messages SET state='failed',quota_month=NULL,ciphertext='' WHERE id=? AND state='unknown'",[$row['id']]); return 'failed';
             }
             try { $result=$provider($data['recipient'],$message); } catch (Throwable $e) { $result='unknown'; }
@@ -248,12 +253,10 @@ final class IebSmsQueue {
                     $result='accepted';
                 } else $result='unknown';
             }
-            if (!in_array($result,['accepted','retryable','unknown'],true)) $result='unknown';
+            // Treat all non-acceptance results as uncertain and retain the
+            // pre-provider quota claim. No provider attempt is retried for free.
+            if (!in_array($result,['accepted','unknown'],true)) $result='unknown';
             if ($result==='accepted') $this->query("UPDATE ieb_sms_messages SET state='accepted' WHERE id=? AND state='unknown'",[$row['id']]);
-            if ($result==='retryable') {
-                if ((int)$row['attempts']+1 >= 3) $this->query("UPDATE ieb_sms_messages SET state='failed',quota_month=NULL WHERE id=? AND state='unknown'",[$row['id']]);
-                else $this->query("UPDATE ieb_sms_messages SET state='retry',ciphertext=?,quota_month=NULL,due_at=? WHERE id=? AND state='unknown'",[$row['ciphertext'],$now+60,$row['id']]);
-            }
             return $result;
         });
     }

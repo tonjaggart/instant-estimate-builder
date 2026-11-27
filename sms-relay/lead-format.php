@@ -13,6 +13,22 @@ function ieb_sms_single_segment(string $message): bool {
     }
     return $gsm ? $septets<=160 : $units<=70;
 }
+/** Conservative two-part fence, including US Cellular's smaller part sizes. */
+function ieb_sms_within_two_segments(string $message): bool {
+    if (!preg_match('//u', $message)) return false;
+    $basic="@£\$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+    $extended="\f^{}\\[~]|€";
+    $chars=preg_split('//u',$message,-1,PREG_SPLIT_NO_EMPTY); $gsm=true;
+    foreach ($chars as $char) if (strpos($basic,$char)===false && strpos($extended,$char)===false) { $gsm=false; break; }
+    $parts=1; $used=0; $limit=$gsm ? 142 : 64;
+    foreach ($chars as $char) {
+        $width=$gsm ? (strpos($basic,$char)!==false ? 1 : 2) : (strlen($char)===4 ? 2 : 1);
+        if ($used+$width>$limit) { ++$parts; $used=0; }
+        $used+=$width;
+        if ($parts>2) return false;
+    }
+    return true;
+}
 function ieb_sms_legacy_message_text(array $lead): string {
     return 'Taggart lead: '.$lead['name'].' | '.$lead['phone'].' | '.$lead['service'].' | support@taggartmediagroup.com';
 }
@@ -34,14 +50,14 @@ function ieb_sms_requested_preview(array $lead) {
     $service=trim(preg_replace('/\s+Estimate\s*$/iu','',$lead['service']));
     if ($service==='') return false;
     $text='New '.$service." Lead:\n".trim($lead['name'])."\n".$lead['low'].' - '.$lead['high']."\n".trim($lead['phone'])."\n".trim($lead['zip']);
-    return ieb_sms_single_segment($text) ? $text : false;
+    return ieb_sms_within_two_segments($text) ? $text : false;
 }
 /** Heritage pilot: preserve all fields and include the required support contact. */
 function ieb_sms_pilot_six_line(array $lead) {
     $text=ieb_sms_requested_preview($lead);
     if ($text===false) return false;
     $text.="\nsupport@taggartmediagroup.com";
-    return ieb_sms_single_segment($text) ? $text : false;
+    return ieb_sms_within_two_segments($text) ? $text : false;
 }
 /** Retain the complete phone; shorten name and service only, on UTF-8 boundaries. */
 function ieb_sms_format_lead(array $lead) {

@@ -7,7 +7,7 @@ $db = new PDO('sqlite::memory:'); $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRM
 $key = random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
 $q = new IebSmsQueue($db, $key); $q->install();
 $phone = '+12025550101'; $lead = ['name'=>'Synthetic Person','phone'=>'+12025550102','service'=>'Synthetic Service'];
-$q->configureInstallation('install_123', 2, true);
+$q->configureInstallation('install_123', 3, true);
 reject_queue(fn() => $q->enqueue('install_123', 'lead_1', $phone, $lead, 1700000000), 'unconsented enqueue accepted');
 $q->consent('install_123', $phone, 'admin_123', 'notice-v1', 1700000000);
 check_queue($q->enqueue('install_123', 'lead_1', $phone, $lead, 1700000001) === 'queued', 'enqueue');
@@ -20,7 +20,7 @@ check_queue($q->dispatchOne($send, 1700000004) === 'accepted', 'dispatch');
 check_queue(count($calls) === 1 && strpos($calls[0][1], 'Taggart') !== false && strpos($calls[0][1], 'Synthetic Person') !== false && strpos($calls[0][1], 'Synthetic Service') !== false && strpos($calls[0][1], '+12025550102') !== false, 'message missing sender branding or lead data');
 check_queue($q->dispatchOne($send, 1700000005) === 'empty' && count($calls) === 1, 'duplicate dispatch');
 $q->enqueue('install_123', 'lead_2', $phone, $lead, 1700000006);
-check_queue($q->dispatchOne(fn() => 'retryable', 1700000007) === 'retryable', 'retryable result');
+check_queue($q->dispatchOne(fn() => 'retryable', 1700000007) === 'unknown', 'provider attempt must remain charged');
 $q->stop($phone, 1700000008);
 check_queue($q->dispatchOne($send, 1700001000) === 'empty' && count($calls) === 1, 'STOP did not cancel retry');
 reject_queue(fn() => $q->enqueue('install_123', 'lead_3', $phone, $lead, 1700001001), 'STOP bypassed');

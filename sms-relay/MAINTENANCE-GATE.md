@@ -24,7 +24,7 @@ file alone.
   of every document root. Do not grant an application identity directory write
   access merely to grant file access. Missing/unreadable/symlinked/hard-linked
   locks fail closed rather than creating a new inode.
-* API requests and all five relay CLI entries (including the aggregate monitor) acquire `LOCK_SH|LOCK_NB` before
+* Signed application API requests and all five relay CLI entries (including the aggregate monitor) acquire `LOCK_SH|LOCK_NB` before
   reading configuration or touching state, holding it until execution ends.
   Rejected requests return 503 with Retry-After; workers and monitor exit 75 without running.
   The monitor emits an unhealthy JSON maintenance result, not a healthy snapshot.
@@ -46,10 +46,12 @@ file alone.
   delivery: WP pending jobs expire after one hour, retries/scheduling can fail,
   and failure requires staff follow-up. Lead records/email are separate from
   pending SMS. Pause length and recovery must account for expiry; do not claim
-  no SMS loss or automatic eventual delivery. Enrollment, revocation and inbound
-  Twilio webhook requests also receive 503 while locked; a carrier/provider
-  retry is not guaranteed, and STOP/HELP may be unavailable via this webhook.
-  A send already accepted by the provider cannot be recalled.
+  no SMS loss or automatic eventual delivery. Enrollment and revocation receive
+  503 while locked. Exact POST `/v1/twilio` bypasses the fence but remains
+  signature authenticated. SQLite serializes suppression and migration writes;
+  exceeding its five-second busy timeout can still return 503, and provider retry
+  is not guaranteed. Keep migrations short and test concurrent signed STOP on a
+  disposable database. A provider-accepted message cannot be recalled.
 * Switches alone do not gate maintenance or API traffic. Fencing covers only
   cooperating entry points; private scripts, old PHP-FPM/OPcache code, direct
   database clients and in-flight pre-instrumentation code are not fenced.

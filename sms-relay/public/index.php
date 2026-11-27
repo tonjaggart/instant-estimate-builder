@@ -2,9 +2,15 @@
 /** Front controller. Serve ONLY this directory; keep config and database private. */
 ini_set('display_errors','0'); ini_set('log_errors','0');
 header('Cache-Control: no-store'); header('X-Content-Type-Options: nosniff');
-require_once dirname(__DIR__).'/maintenance-lock.php';
-$maintenanceLock=ieb_maintenance_shared();
-if (!$maintenanceLock) { http_response_code(503); header('Retry-After: 60'); header('Content-Type: application/json'); echo '{"error":"unavailable"}'; exit; }
+// Keep authenticated inbound STOP available while outbound workers and signed
+// application APIs are fenced. SQLite serializes STOP and schema transactions.
+// Only this exact webhook route bypasses the fence; it never dispatches SMS.
+$isWebhook=($_SERVER['REQUEST_METHOD']??'')==='POST' && ($_SERVER['REQUEST_URI']??'')==='/v1/twilio';
+if (!$isWebhook) {
+    require_once dirname(__DIR__).'/maintenance-lock.php';
+    $maintenanceLock=ieb_maintenance_shared();
+    if (!$maintenanceLock) { http_response_code(503); header('Retry-After: 60'); header('Content-Type: application/json'); echo '{"error":"unavailable"}'; exit; }
+}
 try {
     require_once dirname(__DIR__).'/vendor/autoload.php';
     require_once dirname(__DIR__).'/auth.php'; require_once dirname(__DIR__).'/queue.php'; require_once dirname(__DIR__).'/verification.php';

@@ -4,6 +4,7 @@ require_once __DIR__.'/../sms-relay/lead-format.php';
 function ieb_sms_configured() {
     if (!defined('IEB_SMS_RELAY_HOST') || !defined('IEB_SMS_INSTALLATION') || !defined('IEB_SMS_SECRET')) return false;
     return is_string(IEB_SMS_RELAY_HOST) && (bool) preg_match('/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\z/D', IEB_SMS_RELAY_HOST)
+        && (IEB_SMS_RELAY_HOST!=='phpstack-1239972-6805622.cloudwaysapps.com' || (defined('IEB_SMS_RELAY_PIN') && IEB_SMS_RELAY_PIN==='159.203.128.214' && function_exists('curl_setopt_array') && class_exists('WpOrg\\Requests\\Transport\\Curl')))
         && is_string(IEB_SMS_INSTALLATION) && (bool) preg_match('/\A[a-zA-Z0-9_-]{8,64}\z/D', IEB_SMS_INSTALLATION)
         && is_string(IEB_SMS_SECRET) && (bool) preg_match('/\A[0-9a-f]{64}\z/D', IEB_SMS_SECRET);
 }
@@ -58,6 +59,42 @@ function ieb_sms_job_fresh($job) {
     return is_array($job) && isset($job['created_at']) && is_int($job['created_at'])
         && $job['created_at']<=time() && $job['created_at']>time()-3600;
 }
+/** Cloudways maps this app's own hostname to loopback. Pin only the operator-reviewed origin.
+ * The constant is an explicit deployment opt-in, not a general-purpose DNS override. */
+function ieb_sms_scoped_post($url,$args) {
+    $host='phpstack-1239972-6805622.cloudwaysapps.com';
+    if (IEB_SMS_RELAY_HOST!==$host) return wp_safe_remote_post($url,$args);
+    if (!in_array($url,array_map(function($path) use ($host) { return 'https://'.$host.$path; }, ['/v1/verification/request','/v1/verification/confirm','/v1/revoke','/v1/events']),true)
+        || !defined('IEB_SMS_RELAY_PIN') || IEB_SMS_RELAY_PIN!=='159.203.128.214'
+        || !filter_var(IEB_SMS_RELAY_PIN,FILTER_VALIDATE_IP,FILTER_FLAG_IPV4|FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE)
+        || !function_exists('curl_setopt_array') || !class_exists('WpOrg\\Requests\\Transport\\Curl')) return null;
+    $hits=['transport'=>0,'curl'=>0];
+    $validate=function($external,$candidate,$requested) use ($host,$url) {
+        return $candidate===$host && $requested===$url ? true : $external;
+    };
+    $transport=function(&$requested,&$headers,&$data,&$type,&$options) use ($url,&$hits) {
+        if ($requested!==$url) return;
+        if ($type!=='POST' || ($options['verify'] ?? false)===false || ($options['verifyname'] ?? true)!==true || ($options['follow_redirects'] ?? true)!==false) throw new RuntimeException('Unsafe relay transport');
+        $options['transport']='WpOrg\\Requests\\Transport\\Curl'; ++$hits['transport'];
+    };
+    $curl=function($handle,$request,$requested) use ($host,$url,&$hits) {
+        if ($requested!==$url) return;
+        if (($request['redirection'] ?? null)!==0 || empty($request['sslverify']) || empty($request['reject_unsafe_urls'])) throw new RuntimeException('Unsafe relay request');
+        if (!curl_setopt_array($handle,[CURLOPT_RESOLVE=>[$host.':443:'.IEB_SMS_RELAY_PIN],CURLOPT_PROXY=>'',CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_FOLLOWLOCATION=>false])) throw new RuntimeException('Relay pin unavailable');
+        ++$hits['curl'];
+    };
+    add_filter('http_request_host_is_external',$validate,99999,3);
+    add_action('requests-requests.before_request',$transport,99999,5);
+    add_action('http_api_curl',$curl,99999,3);
+    try {
+        $response=wp_safe_remote_post($url,$args);
+        return $hits===['transport'=>1,'curl'=>1] ? $response : null;
+    } finally {
+        remove_filter('http_request_host_is_external',$validate,99999);
+        remove_action('requests-requests.before_request',$transport,99999);
+        remove_action('http_api_curl',$curl,99999);
+    }
+}
 /** Return HTTP status only; never expose or log response bodies or credentials. */
 function ieb_sms_post($path, $data) {
     if (!ieb_sms_configured() || !in_array($path, ['/v1/verification/request','/v1/verification/confirm','/v1/revoke','/v1/events'], true)) return 0;
@@ -66,8 +103,10 @@ function ieb_sms_post($path, $data) {
         $timestamp=(string) time(); $nonce=bin2hex(random_bytes(16));
         $message="IEB1\n".IEB_SMS_INSTALLATION."\nPOST\n".$path."\n".$timestamp."\n".$nonce."\n".hash('sha256',$body);
         $signature=hash_hmac('sha256',$message,hex2bin(IEB_SMS_SECRET));
-        $response=wp_safe_remote_post('https://'.IEB_SMS_RELAY_HOST.$path, ['timeout'=>4,'redirection'=>0,'sslverify'=>true,'reject_unsafe_urls'=>true,'limit_response_size'=>4096,'headers'=>['Content-Type'=>'application/json','X-Installation'=>IEB_SMS_INSTALLATION,'X-Timestamp'=>$timestamp,'X-Nonce'=>$nonce,'X-Signature'=>$signature],'body'=>$body]);
-        if (is_wp_error($response)) return 0;
+        $url='https://'.IEB_SMS_RELAY_HOST.$path;
+        $args=['timeout'=>4,'redirection'=>0,'sslverify'=>true,'reject_unsafe_urls'=>true,'limit_response_size'=>4096,'headers'=>['Content-Type'=>'application/json','X-Installation'=>IEB_SMS_INSTALLATION,'X-Timestamp'=>$timestamp,'X-Nonce'=>$nonce,'X-Signature'=>$signature],'body'=>$body];
+        $response=ieb_sms_scoped_post($url,$args);
+        if ($response===null || is_wp_error($response)) return 0;
         $status=(int) wp_remote_retrieve_response_code($response);
         if ($status>=200 && $status<300) {
             $expected=['/v1/verification/request'=>['requested'],'/v1/verification/confirm'=>['verified'],'/v1/revoke'=>['revoked'],'/v1/events'=>['queued','duplicate']];

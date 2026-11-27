@@ -17,6 +17,12 @@ function ieb_maintenance_acquire(int $operation) {
         !flock($handle,$operation|LOCK_NB)) {
         fclose($handle); return false;
     }
+    // A durable marker keeps cooperating entries fenced after an operator crash.
+    // Check after acquiring the lock so marker creation and exclusive acquisition
+    // cannot race a new entrant. The exact signed webhook intentionally bypasses it.
+    if ($operation===LOCK_SH && file_exists(dirname(__DIR__).'/maintenance.active')) {
+        fclose($handle); return false;
+    }
     // The caller retains this resource for its entire request/worker lifetime.
     return $handle;
 }

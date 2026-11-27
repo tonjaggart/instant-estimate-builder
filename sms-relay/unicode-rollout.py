@@ -89,6 +89,8 @@ def main():
             raise ValueError('marker-aware bootstrap required before rollout')
     files = sorted(set(a.file))
     if len(files)!=len(a.file): raise ValueError('duplicate file')
+    if set(files) & {'maintenance-lock.php', 'public/index.php'}:
+        raise ValueError('trusted bootstrap is not replaceable by fixture rollout')
     hashes = {}
     for name in files:
         p=Path(name)

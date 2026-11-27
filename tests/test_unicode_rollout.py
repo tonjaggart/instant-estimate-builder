@@ -111,6 +111,27 @@ class Rollout(unittest.TestCase):
         self.assertFalse((self.root/'unicode-rollout-journal.json').exists())
         self.assertEqual(json.loads(self.config.read_text()),self.original)
 
+    def assert_bootstrap_replacement_rejected(self, bootstrap):
+        source = self.root / 'candidate'
+        shutil.copytree(ROOT / 'sms-relay', source)
+        (source / bootstrap).write_text('<?php // no admission fence')
+        args = self.args.copy()
+        args[args.index('--source') + 1] = str(source)
+        args.extend(['--file', bootstrap])
+        failed = subprocess.run(args, capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(failed.returncode, 0, failed.stderr)
+        self.assertFalse((self.root / 'maintenance.active').exists())
+        self.assertFalse((self.root / 'unicode-rollout-journal.json').exists())
+        self.assertEqual(json.loads(self.config.read_text()), self.original)
+        self.assertEqual((self.code / bootstrap).read_bytes(),
+                         (ROOT / 'sms-relay' / bootstrap).read_bytes())
+
+    def test_rejects_replacing_trusted_lock(self):
+        self.assert_bootstrap_replacement_rejected('maintenance-lock.php')
+
+    def test_rejects_replacing_trusted_front_controller(self):
+        self.assert_bootstrap_replacement_rejected('public/index.php')
+
     def test_changed_legacy_record_fails_closed(self):
         self.assertEqual(self.run_rollout('--test-crash','migration').returncode,86)
         with sqlite3.connect(self.db) as db:

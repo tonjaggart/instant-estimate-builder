@@ -88,7 +88,7 @@ $GLOBALS['wpdb']->postmeta='wp_1_postmeta'; $siteOne=ieb_sms_event_id(42,1);
 $GLOBALS['wpdb']->postmeta='wp_2_postmeta'; $siteTwo=ieb_sms_event_id(42,1);
 $GLOBALS['wpdb']->postmeta=$original_table;
 expect($siteOne!==$siteTwo, 'same lead and recipient ID in different site tables must not collide');
-$db=new PDO(getenv('IEB_TEST_DB') ? 'sqlite:'.getenv('IEB_TEST_DB') : 'sqlite::memory:'); $key=getenv('IEB_TEST_CRYPT') ? hex2bin(getenv('IEB_TEST_CRYPT')) : random_bytes(32); $queue=new IebSmsQueue($db,$key); $verify=new IebSmsVerification($db,$key); $queue->install(); ieb_auth_install_schema($db); $queue->configureInstallation(IEB_SMS_INSTALLATION,10,true); $GLOBALS['api']=new IebRelayApi($db,$queue,[IEB_SMS_INSTALLATION=>IEB_SMS_SECRET],$verify);
+$db=new PDO(getenv('IEB_TEST_DB') ? 'sqlite:'.getenv('IEB_TEST_DB') : 'sqlite::memory:'); $key=getenv('IEB_TEST_CRYPT') ? hex2bin(getenv('IEB_TEST_CRYPT')) : random_bytes(32); $queue=new IebSmsQueue($db,$key); $verify=new IebSmsVerification($db,$key); $queue->install(); ieb_auth_install_schema($db); $queue->configureInstallation(IEB_SMS_INSTALLATION,10,true); $queue->configureSegmentCap(IEB_SMS_INSTALLATION,20); $GLOBALS['api']=new IebRelayApi($db,$queue,[IEB_SMS_INSTALLATION=>IEB_SMS_SECRET],$verify);
 $GLOBALS['can']=false; expect(!ieb_sms_request_enrollment('+15551230101',true), 'capability enforced');
 $GLOBALS['invalid_success']=true; expect(ieb_sms_post('/v1/events',[])===0, 'malformed success does not acknowledge delivery'); $GLOBALS['invalid_success']=false;
 $GLOBALS['can']=true; expect(!ieb_sms_request_enrollment('+15551230101',false), 'unchecked consent rejected');

@@ -96,7 +96,7 @@ check_multi(!ieb_sms_request_enrollment('(202) 555-0101',true),'normalized dupli
 require_once ABSPATH.'wp-admin/includes/template.php';
 ob_start(); ieb_sms_render_settings(); $html=ob_get_clean();
 foreach ($phones as $phone) check_multi(str_contains($html,$phone),'UI shows each number');
-check_multi(substr_count($html,'name="recipient"')===4,'per-recipient controls carry a row ID');
+check_multi(substr_count($html,'name="recipient"')===5,'per-recipient controls including pending resend carry a row ID');
 check_multi(str_contains($html,'name="opt_in"'),'new number needs its own consent');
 echo "PASS: secured multi-recipient UI and normalized duplicate handling\n";
 // A queued alert must not revive after the same person opts out and opts in again.

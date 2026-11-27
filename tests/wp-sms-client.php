@@ -53,6 +53,7 @@ function wp_safe_remote_post($url,$args) {
         return ['response'=>['code'=>$status],'body'=>$body];
     }
     $h=$args['headers']; [$status,$body]=$GLOBALS['api']->handle('POST',parse_url($url,PHP_URL_PATH),['installation'=>$h['X-Installation'],'timestamp'=>$h['X-Timestamp'],'nonce'=>$h['X-Nonce'],'signature'=>$h['X-Signature']],$args['body'],time());
+    if (!empty($GLOBALS['lose_request_response']) && str_ends_with($url,'/v1/verification/request')) { $GLOBALS['lose_request_response']=false; return ['response'=>['code'=>503],'body'=>'{}']; }
     if (!empty($GLOBALS['legacy_relay']) && str_ends_with($url,'/v1/revoke')) unset($body['generation_scoped_revoke']);
     return ['response'=>['code'=>$status],'body'=>json_encode($body)];
 }

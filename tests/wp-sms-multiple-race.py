@@ -31,6 +31,13 @@ with tempfile.TemporaryDirectory(dir=root.parent) as directory:
     assert len(rows) == 1, rows
     requests = [json.loads(line) for line in Path(directory, 'requests').read_text().splitlines()]
     assert len(requests) == 2 and len({r['request_id'] for r in requests}) == 1, requests
+    target, state = next(iter(rows.items()))
+    race([['resend', target, state['request_id']], ['resend', target, state['request_id']]], env)
+    after_resend = json.loads(run('rows', env=env))
+    assert after_resend[target]['status'] == 'pending' and after_resend[target]['request_id'] != state['request_id']
+    requests = [json.loads(line) for line in Path(directory, 'requests').read_text().splitlines()]
+    assert len(requests) == 4 and requests[2]['request_id'] == requests[3]['request_id'] == after_resend[target]['request_id']
+    print('PASS: concurrent duplicate resends reuse one new generation')
     race([['enroll', '+12025550102'], ['enroll', '+12025550103']], env)
     rows = json.loads(run('rows', env=env))
     assert len(rows) == 3 and len({r['phone'] for r in rows.values()}) == 3, rows

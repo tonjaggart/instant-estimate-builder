@@ -42,6 +42,7 @@ $dir=getenv('IEB_RACE_DIR'); touch($dir.'/ready-'.getmypid()); $until=microtime(
 while (count(glob($dir.'/ready-*'))<2 && microtime(true)<$until) usleep(10000);
 if (count(glob($dir.'/ready-*'))<2) throw new RuntimeException('Race barrier timed out');
 if ($mode==='enroll') ieb_sms_request_enrollment($argv[2],true);
+elseif ($mode==='resend') { if (!ieb_sms_resend_enrollment((int)$argv[2],$argv[3])) throw new RuntimeException('resend failed'); }
 elseif ($mode==='lead') ieb_sms_queue_lead((int)$argv[2]);
 elseif ($mode==='remove') { if (!ieb_sms_remove_recipient((int)$argv[2])) throw new RuntimeException('remove failed'); }
 else throw new RuntimeException('Invalid mode');

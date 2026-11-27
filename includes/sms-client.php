@@ -442,13 +442,14 @@ function ieb_sms_render_settings() {
         elseif ($status==='pending') echo '<p>Verification is pending. If you received a code, enter it below. If the code expired or did not arrive, you can request another.</p>';
         elseif ($status==='revoked') echo '<p>Removal is not complete. Alerts are disabled locally, but messages already queued at the relay may still be sent. Retry removal, reply STOP, or contact support@taggartmediagroup.com.</p>';
         if ($status==='pending') {
-            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">'; wp_nonce_field('ieb_sms_enrollment');
-            echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="confirm"><input type="hidden" name="recipient" value="'.esc_attr((string)$id).'"><p><label>Verification code <input name="code" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" required></label></p><button class="button button-primary hgm-button-primary" type="submit">Confirm code</button></form>';
+            echo '<div class="ieb-sms-verification"><form class="ieb-sms-confirm-form" method="post" action="'.esc_url(admin_url('admin-post.php')).'">'; wp_nonce_field('ieb_sms_enrollment');
+            echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="confirm"><input type="hidden" name="recipient" value="'.esc_attr((string)$id).'"><label class="ieb-sms-code-label">Verification code <input class="regular-text ieb-notification-input ieb-sms-code-input" name="code" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" required></label><button class="button button-primary hgm-button-primary" type="submit">Confirm code</button></form>';
             if (!empty($state['request_id']) && is_string($state['request_id']) && preg_match('/\A[0-9a-f]{32}\z/D',$state['request_id'])) {
                 echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">'; wp_nonce_field('ieb_sms_enrollment');
                 $resendToken=!empty($state['resend_inflight']) && !empty($state['resend_from']) ? $state['resend_from'] : $state['request_id'];
-                echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="resend"><input type="hidden" name="recipient" value="'.esc_attr((string)$id).'"><input type="hidden" name="request_id" value="'.esc_attr($resendToken).'"><p><button class="button" type="submit">Resend verification code</button></p></form>';
+                echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="resend"><input type="hidden" name="recipient" value="'.esc_attr((string)$id).'"><input type="hidden" name="request_id" value="'.esc_attr($resendToken).'"><button class="button" type="submit">Resend verification code</button></form>';
             }
+            echo '</div>';
         }
         if (in_array($status,['verified','pending','revoked'],true)) {
             if ($confirmation===(int)$id) {
@@ -464,7 +465,7 @@ function ieb_sms_render_settings() {
     }
     echo '<h3>Add a number</h3><form method="post" action="'.esc_url(admin_url('admin-post.php')).'">'; wp_nonce_field('ieb_sms_enrollment');
     echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="request">';
-    echo '<p><label for="ieb-sms-phone">Your mobile number</label><br><input id="ieb-sms-phone" name="phone" type="tel" autocomplete="tel" placeholder="10-digit mobile number" class="regular-text" required></p>';
+    echo '<p><label for="ieb-sms-phone">Your mobile number</label><br><input id="ieb-sms-phone" name="phone" type="tel" autocomplete="tel" placeholder="10-digit mobile number" class="regular-text ieb-notification-input ieb-sms-phone-input" required></p>';
     echo '<p><label><input type="checkbox" name="opt_in" value="1" required> I am the user of this number. I agree to receive recurring Instant Estimate Builder estimate-request text alerts from Taggart Media Group LLC at the mobile number I provide. Alerts may include lead contact details. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to unsubscribe.</label></p>';
     echo '<p>For this pilot, replying HELP receives a generic carrier/provider response; for program support email support@taggartmediagroup.com. Reply STOP to unsubscribe.</p>';
     echo '<p><a href="https://taggartmediagroup.com/instant-estimate-builder-sms-alert-terms/">SMS Alert Terms</a> | <a href="https://taggartmediagroup.com/privacy-policy/">Privacy Policy</a>. Help: support@taggartmediagroup.com.</p>';

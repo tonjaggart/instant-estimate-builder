@@ -920,6 +920,42 @@
     outline: none;
 }
 
+.ieb-sms-verification,
+.ieb-sms-confirm-form,
+.ieb-sms-code-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ieb-sms-verification,
+.ieb-sms-confirm-form {
+    flex-wrap: wrap;
+}
+
+.ieb-sms-verification form,
+.ieb-sms-code-label {
+    min-width: 0;
+    margin: 0;
+}
+
+.ieb-sms-code-label {
+    flex-wrap: wrap;
+}
+
+.ieb-notification-input.regular-text.ieb-sms-code-input {
+    width: 120px;
+    max-width: 100%;
+}
+
+.ieb-notification-input.regular-text.ieb-sms-phone-input {
+    max-width: 360px;
+}
+
+.ieb-sms-verification .button {
+    min-height: 44px;
+}
+
 .ieb-sms-recipient-list {
     display: grid;
     gap: 12px;

@@ -12,6 +12,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR')) as directory:
     subprocess.run(['php','-r',init],cwd=root,env=env,check=True)
     with socket.socket() as sock: sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]
     env['IEB_TEST_LOOPBACK_PORT']=str(port)
+    env['IEB_TEST_GATE_PATH']=str(root/'maintenance.lock')
     with (directory/'server.log').open('w+') as log:
         server=subprocess.Popen(['php','-d','display_errors=0','-d','log_errors=0','-S',f'127.0.0.1:{port}','-t','sms-relay/public','sms-relay/public/index.php'],cwd=root,env=env,stdout=log,stderr=log)
         try:

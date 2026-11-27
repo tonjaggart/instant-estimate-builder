@@ -42,7 +42,23 @@ function wp_nonce_field($action) { echo '<input name="_wpnonce" value="valid">';
 function wp_safe_remote_post($url,$args) {
     $GLOBALS['http'][]=[$url,$args];
     if (!empty($GLOBALS['forced_status'])) return ['response'=>['code'=>$GLOBALS['forced_status']],'body'=>'{}'];
-    if (!empty($GLOBALS['network_down'])) return ['response'=>['code'=>503],'body'=>'{}'];
+    if (!empty($GLOBALS['network_down'])) {
+        if ($gate=getenv('IEB_TEST_GATE_PATH')) {
+            // Only the disposable loopback integration sets this path.
+            $port=(int)getenv('IEB_TEST_LOOPBACK_PORT');
+            if (!$port || !preg_match('~\Ahttps://relay\.example\.test(/v1/[a-z/_-]+)\z~D',$url,$match)) throw new RuntimeException('Unsafe gate fixture');
+            $lock=fopen($gate,'r'); if (!$lock || !flock($lock,LOCK_EX|LOCK_NB)) throw new RuntimeException('Cannot hold test gate');
+            try {
+                $ch=curl_init('http://127.0.0.1:'.$port.$match[1]);
+                curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$args['body'],CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>5]);
+                $body=curl_exec($ch); $status=curl_getinfo($ch,CURLINFO_RESPONSE_CODE);
+                if ($status!==503) throw new RuntimeException('Real gate did not return 503');
+                $GLOBALS['actual_gate_503']=true;
+                return ['response'=>['code'=>$status],'body'=>$body];
+            } finally { fclose($lock); }
+        }
+        return ['response'=>['code'=>503],'body'=>'{}'];
+    }
     if (!empty($GLOBALS['invalid_success'])) return ['response'=>['code'=>200],'body'=>'{}'];
     if ($port=getenv('IEB_TEST_LOOPBACK_PORT')) {
         if (!preg_match('~\Ahttps://relay\.example\.test(/v1/[a-z/_-]+)\z~D',$url,$match) || $args['sslverify']!==true || $args['redirection']!==0 || $args['reject_unsafe_urls']!==true) throw new RuntimeException('Unsafe test URL');
@@ -127,6 +143,8 @@ $GLOBALS['meta'][43]=['first_name'=>'Retry','phone'=>'+15551230104','_hgm_form_i
 expect(ieb_sms_queue_lead(43), 'second lead scheduled');
 $GLOBALS['network_down']=true; ieb_sms_dispatch_lead(...$GLOBALS['scheduled'][1][2]);
 expect(count($GLOBALS['scheduled'])===3 && $GLOBALS['scheduled'][2][2][2]===1, 'temporary failure schedules retry');
+expect(!empty($GLOBALS['meta'][43]['_ieb_sms_pending']), 'temporary failure retains the pending payload');
+if (getenv('IEB_TEST_GATE_PATH')) expect(!empty($GLOBALS['actual_gate_503']), 'actual gate returned 503');
 $GLOBALS['network_down']=false; ieb_sms_dispatch_lead(...$GLOBALS['scheduled'][2][2]);
 $retry=$GLOBALS['http'][count($GLOBALS['http'])-1]; $first=$GLOBALS['http'][count($GLOBALS['http'])-2];
 expect($first[1]['body']===$retry[1]['body'] && $first[1]['headers']['X-Nonce']!==$retry[1]['headers']['X-Nonce'], 'retry stable payload and fresh nonce');

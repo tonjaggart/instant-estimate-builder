@@ -1,6 +1,9 @@
 <?php
 /** One event per invocation; CLI only. No output containing provider or lead data. */
 if (PHP_SAPI!=='cli') { http_response_code(404); exit; }
+require_once __DIR__.'/maintenance-lock.php';
+$maintenanceLock=ieb_maintenance_shared();
+if (!$maintenanceLock) { fwrite(STDERR,"Maintenance gate unavailable\n"); exit(75); }
 ini_set('display_errors','0'); ini_set('log_errors','0');
 try {
     $path=getenv('IEB_RELAY_CONFIG'); $c=json_decode(file_get_contents($path),true,16,JSON_THROW_ON_ERROR);

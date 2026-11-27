@@ -1142,6 +1142,21 @@
     background: transparent;
 }
 
+.ieb-leads-scroll-hint {
+    display: none;
+}
+
+@media (max-width: 782px) {
+    .ieb-leads-table.widefat {
+        min-width: 1100px;
+    }
+
+    .ieb-leads-scroll-hint {
+        display: block;
+        margin: 0 0 10px;
+    }
+}
+
 .ieb-leads-table thead th {
     padding: 18px 20px;
     border-bottom: 1px solid #e2e8f0;

@@ -278,7 +278,8 @@ function ieb_render_leads_page() {
         return;
     }
 
-    echo '<div class="ieb-leads-table-wrap">';
+    echo '<p class="ieb-leads-scroll-hint">Scroll horizontally to see all lead details and actions.</p>';
+    echo '<div class="ieb-leads-table-wrap" tabindex="0" role="region" aria-label="Lead list, scroll horizontally to see all columns">';
     echo '<table class="widefat fixed striped ieb-leads-table">';
     echo '<thead><tr>';
     echo '<th>Name</th>';

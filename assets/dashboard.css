@@ -1196,6 +1196,42 @@
     white-space: nowrap;
 }
 
+.ieb-leads-actions .ieb-lead-trash-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 12px;
+    color: #a32121;
+    font-weight: 700;
+    text-decoration: underline;
+    white-space: nowrap;
+}
+
+.ieb-leads-actions .ieb-lead-trash-link:hover {
+    color: #701919;
+}
+
+.ieb-leads-actions .ieb-lead-trash-link:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
+.ieb-lead-trash-confirm {
+    margin-bottom: 20px;
+    scroll-margin-top: 48px;
+}
+
+.ieb-lead-trash-confirm form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.ieb-lead-trash-confirm .button {
+    min-height: 44px;
+}
+
 .ieb-leads-empty {
     padding: 28px;
     border: 1px dashed #cbd5e1;

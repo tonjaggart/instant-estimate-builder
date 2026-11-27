@@ -2,6 +2,38 @@
 // Exit if accessed directly
 if (!defined('ABSPATH')) exit();
 
+/** Move only a published lead to recoverable WordPress Trash. */
+function ieb_trash_lead($lead_id, $nonce, $method) {
+    if ($method !== 'POST' || !current_user_can(defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options')) {
+        return new WP_Error('forbidden', 'This action is not allowed.');
+    }
+    if ((!is_int($lead_id) && (!is_string($lead_id) || !ctype_digit($lead_id))) || (int) $lead_id < 1 || !is_string($nonce)) {
+        return new WP_Error('invalid', 'The lead could not be moved to Trash.');
+    }
+    $lead_id = (int) $lead_id;
+    if (!wp_verify_nonce($nonce, 'ieb_trash_lead_' . $lead_id) || get_post_type($lead_id) !== 'hgm_lead' || get_post_status($lead_id) !== 'publish') {
+        return new WP_Error('invalid', 'The lead could not be moved to Trash.');
+    }
+    // Core permanently deletes when Trash is disabled: never take that path.
+    if (!defined('EMPTY_TRASH_DAYS') || EMPTY_TRASH_DAYS <= 0) {
+        return new WP_Error('trash_disabled', 'WordPress Trash is disabled. The lead was not deleted.');
+    }
+    if (!wp_trash_post($lead_id) || get_post_status($lead_id) !== 'trash') {
+        return new WP_Error('failed', 'The lead could not be moved to Trash.');
+    }
+    return true;
+}
+
+add_action('admin_post_ieb_trash_lead', function () {
+    $id = isset($_POST['lead_id']) && is_scalar($_POST['lead_id']) ? wp_unslash($_POST['lead_id']) : '';
+    $nonce = isset($_POST['_wpnonce']) && is_string($_POST['_wpnonce']) ? wp_unslash($_POST['_wpnonce']) : '';
+    $method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : '';
+    $result = ieb_trash_lead($id, $nonce, $method);
+    $status = is_wp_error($result) ? ($result->get_error_code() === 'trash_disabled' ? 'disabled' : 'error') : 'trashed';
+    wp_safe_redirect(add_query_arg('lead_action', $status, admin_url('admin.php?page=instant-estimate-leads')));
+    exit;
+});
+
 // Add custom columns to hgm_lead CPT list
 add_filter('manage_edit-hgm_lead_columns', function($columns) {
     return [
@@ -184,6 +216,28 @@ function ieb_render_leads_page() {
 
     echo '<div class="wrap hgm-dashboard ieb-leads-page">';
 
+    $lead_action = isset($_GET['lead_action']) && is_string($_GET['lead_action']) ? sanitize_key(wp_unslash($_GET['lead_action'])) : '';
+    if ($lead_action === 'trashed') {
+        echo '<div class="notice notice-success"><p>Lead moved to Trash. It can be restored before WordPress permanently removes it.</p></div>';
+    } elseif ($lead_action === 'disabled') {
+        echo '<div class="notice notice-error"><p>WordPress Trash is disabled. The lead was not deleted.</p></div>';
+    } elseif ($lead_action === 'error') {
+        echo '<div class="notice notice-error"><p>The lead could not be moved to Trash. Please try again.</p></div>';
+    }
+
+    $confirm_id = isset($_GET['confirm_lead']) && is_string($_GET['confirm_lead']) && ctype_digit($_GET['confirm_lead']) ? (int) $_GET['confirm_lead'] : 0;
+    if ($confirm_id && current_user_can(defined('IEB_SENSITIVE_CAPABILITY') ? IEB_SENSITIVE_CAPABILITY : 'manage_options') && get_post_type($confirm_id) === 'hgm_lead' && get_post_status($confirm_id) === 'publish') {
+        echo '<section class="hgm-dashboard-card ieb-lead-trash-confirm" aria-labelledby="ieb-trash-title">';
+        echo '<h2 id="ieb-trash-title" tabindex="-1">Move lead to Trash?</h2>';
+        echo '<p><strong>' . esc_html(get_the_title($confirm_id) ?: 'Untitled Lead') . '</strong> (Lead #' . esc_html($confirm_id) . ') will be removed from this list. A site administrator can restore it before WordPress automatically empties the Trash. Previously sent notifications are not removed; pending text alerts may be cancelled.</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="ieb_trash_lead" /><input type="hidden" name="lead_id" value="' . esc_attr($confirm_id) . '" />';
+        wp_nonce_field('ieb_trash_lead_' . $confirm_id);
+        echo '<button type="submit" class="button button-primary hgm-button-primary">Move to Trash</button> ';
+        echo '<a class="button hgm-button-secondary" href="' . esc_url(admin_url('admin.php?page=instant-estimate-leads')) . '">Cancel</a>';
+        echo '</form></section>';
+    }
+
     echo '<section class="hgm-dashboard-hero ieb-leads-hero">';
     echo '<div class="hgm-dashboard-eyebrow">Lead Inbox</div>';
     echo '<h1>Instant Estimate Leads</h1>';
@@ -255,7 +309,8 @@ function ieb_render_leads_page() {
         echo '<td>' . esc_html($zip ?: '—') . '</td>';
         echo '<td>' . esc_html($estimate) . '</td>';
         echo '<td>' . esc_html(get_the_date('M j, Y g:i a')) . '</td>';
-        echo '<td class="ieb-leads-actions"><a href="' . esc_url($detail_url) . '" class="button button-primary hgm-button-primary ieb-lead-detail-button">View Lead Details</a></td>';
+        echo '<td class="ieb-leads-actions"><a href="' . esc_url($detail_url) . '" class="button button-primary hgm-button-primary ieb-lead-detail-button">View Lead Details</a>';
+        echo '<a class="ieb-lead-trash-link" href="' . esc_url(add_query_arg('confirm_lead', $post_id, admin_url('admin.php?page=instant-estimate-leads'))) . '#ieb-trash-title" aria-label="' . esc_attr('Move lead ' . (get_the_title() ?: 'Untitled Lead') . ', number ' . $post_id . ', to Trash') . '">Move to Trash</a></td>';
         echo '</tr>';
     }
 

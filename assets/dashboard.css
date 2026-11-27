@@ -950,6 +950,23 @@
     box-shadow: none;
 }
 
+.ieb-notifications-card .button-link.ieb-sms-remove {
+    min-height: 44px;
+    color: #b91c1c;
+    font-weight: 800;
+    text-decoration: underline;
+}
+
+.ieb-notifications-card .button-link.ieb-sms-remove:hover,
+.ieb-notifications-card .button-link.ieb-sms-remove:focus {
+    color: #991b1b;
+}
+
+.ieb-notifications-card .button-link.ieb-sms-remove:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 2px;
+}
+
 .ieb-remove-recipient,
 .remove-recipient {
     color: #b91c1c;

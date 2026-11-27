@@ -21,6 +21,19 @@ function ieb_sms_message_text(array $lead): string {
     if (ieb_sms_single_segment($legacy)) return $legacy;
     return 'Taggart: '.$lead['name'].' | '.$lead['phone'].' | '.$lead['service'].' support@taggartmediagroup.com';
 }
+/** Offline preview only. Not authorized or connected to the live pilot sender. */
+function ieb_sms_requested_preview(array $lead) {
+    foreach (['name','phone','service','low','high','zip'] as $field) {
+        if (!isset($lead[$field]) || !is_string($lead[$field]) || trim($lead[$field])==='' || strlen($lead[$field])>160 || !preg_match('//u',$lead[$field]) || preg_match('/[\x00-\x1f\x7f]/',$lead[$field])) return false;
+    }
+    foreach (['low','high'] as $field) {
+        if (!preg_match('/\A\$(?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*)\z/D',$lead[$field])) return false;
+    }
+    $service=trim(preg_replace('/\s+Estimate\s*$/iu','',$lead['service']));
+    if ($service==='') return false;
+    $text='New '.$service." Lead:\n".trim($lead['name'])."\n".$lead['low'].' - '.$lead['high']."\n".trim($lead['phone'])."\n".trim($lead['zip']);
+    return ieb_sms_single_segment($text) ? $text : false;
+}
 /** Retain the complete phone; shorten name and service only, on UTF-8 boundaries. */
 function ieb_sms_format_lead(array $lead) {
     foreach (['name','phone','service'] as $key) {

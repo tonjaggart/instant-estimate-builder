@@ -1,33 +1,38 @@
-# Central SMS relay — prelaunch, disabled
+# Central SMS relay — restricted Heritage staging pilot
 
-## Exact five-line candidate — not approved for the Heritage pilot
+## Temporary Heritage pilot six-line format
 
-This branch adds an experimental five-line format, with no support footer. The
-existing pilot permission required that footer. Do not enable or deploy this
-format unless Twilio explicitly approves the exact wording and the owner has
-authorized deployment. The WordPress switch `IEB_SMS_EXACT_LEAD_FORMAT` is
-absent/false by default; the relay separately rejects the extended lead unless
-the installation is explicitly present in `exact_lead_installations`. Do not
-set either switch while approval is unresolved. Email behavior is unchanged.
+For the limited Heritage pilot, Twilio ticket 30498908 requires the support
+email in both enrollment and alerts. Jon approved the requested five fields
+followed by that support email as a temporary sixth line. This permission is
+pilot-specific and does not approve the five-line preview or other customers.
+Set `IEB_SMS_EXACT_LEAD_FORMAT` to true only on the approved WordPress install
+and add its installation ID to the relay's `exact_lead_installations`; both
+settings are needed. Without either setting, the six-line format is not active.
+Email behavior is unchanged. Preserve the existing enrollment, STOP and HELP
+handling; no support footer may be removed without provider approval.
 
-Exact jobs carry a version inside the encrypted relay payload. Existing jobs
+Six-line jobs carry a version inside the encrypted relay payload. Existing jobs
 retain their original formatting. **Older worker code does not understand this
-version:** it can send the old support-footer body instead. A future rollout
+version:** it can send the old support-footer body instead. A rollout
 must stop and drain all older workers before admitting exact jobs, replace and
 verify all worker instances and the HTTP relay, and never roll back a worker
-while an exact job exists. This paragraph is a compatibility warning, not an
-authorization or complete deployment runbook.
+while a six-line job exists. Unapproved experimental `exact-v1` jobs fail
+closed. This paragraph is not a complete deployment runbook.
 
 The formatter never truncates name, service, estimate, callback or ZIP: if any
 field is absent/invalid or the complete text exceeds one GSM or UTF-16 segment,
 the plugin records its existing privacy-safe `format` failure for admin review
-instead of sending. It rejects incomplete choices, unavailable/zero estimates,
+instead of sending. With the support footer, non-GSM names can readily exceed
+the 70 UTF-16-unit limit even when short; these alerts are not sent. The settings
+page shows only the most recent recorded issue, not an independent alert, so
+administrators must check it and the lead inbox. It rejects incomplete choices, unavailable/zero estimates,
 and saved values inconsistent with the server calculator; this means some
 leads will not receive an SMS and need manual follow-up. The two-recipient
 integration fixture uses synthetic data, a disposable WordPress/MySQL, local
 loopback relay and Twilio SDK fake HTTP client; it is not a live delivery test.
 
-This directory contains a separately hosted relay HTTP front controller, SQLite queue, Twilio PHP SDK sender and signed inbound webhook. The plugin contains an experimental server-side WordPress client; it is unconfigured by default and is not approved for staging, production or live SMS. No credentials, messages, client settings or deployed sites were changed. The worker refuses to send unless `live_send_enabled` is explicitly the JSON boolean `true`; leave it false. The worker switch does not disable Twilio's automatic keyword replies or the webhook's HELP TwiML, so do not configure a live sender or webhook. This is an implementation for isolated evaluation, not proof of real consent, carrier compliance, delivery, operational readiness or provider approval.
+This directory contains a separately hosted relay HTTP front controller, SQLite queue, Twilio PHP SDK sender and signed inbound webhook. The WordPress client and relay are unconfigured by default; the Heritage staging pilot is a separately configured, restricted exception. The worker refuses to send unless `live_send_enabled` is explicitly the JSON boolean `true`. The worker switch does not disable Twilio's automatic keyword replies or the webhook's HELP TwiML. Synthetic tests do not prove real consent, carrier compliance, delivery, or approval for additional installations.
 
 Taggart is the intended sender to consenting business administrators. The alert includes the lead's name, phone and service; it must not go to the homeowner. Heritage and Assurance are intended to be grandfathered without subscription charges; no billing, grandfathering records, caps or prices have been configured by this code. Their existing settings are untouched. Do not infer consent from prelaunch interest, an old email-to-carrier number or a screenshot. Twilio must confirm the registered use case permits Taggart to send to admins of multiple businesses.
 

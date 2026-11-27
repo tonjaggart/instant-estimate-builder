@@ -234,7 +234,7 @@ function ieb_sms_event_id($lead_id,$recipient_id) {
     global $wpdb;
     return substr('lead_'.hash_hmac('sha256',$wpdb->postmeta.'|'.$lead_id.'|'.$recipient_id,hex2bin(IEB_SMS_SECRET)),0,64);
 }
-/** Exact mode is deliberately opt-in and must be explicitly enabled only after provider approval. */
+/** Pilot-specific mode requires explicit per-installation configuration. */
 function ieb_sms_exact_lead($lead_id) {
     $form=(int)get_post_meta($lead_id,'_hgm_form_id',true);
     $steps=get_post_meta($form,'_hgm_form_data',true);
@@ -256,7 +256,7 @@ function ieb_sms_exact_lead($lead_id) {
     $calculated=hgm_calculate_server_side_estimate($form,$answers);
     if (empty($calculated['pricing_valid']) || !is_numeric($calculated['low_total']??null) || !is_numeric($calculated['high_total']??null) || $calculated['low_total']<0 || $calculated['high_total']<$calculated['low_total'] || $calculated['high_total']<=0) return false;
     if ($lead['low']!=='$'.number_format((float)$calculated['low_total'],0) || $lead['high']!=='$'.number_format((float)$calculated['high_total'],0)) return false;
-    return ieb_sms_requested_preview($lead)===false ? false : $lead;
+    return ieb_sms_pilot_six_line($lead)===false ? false : $lead;
 }
 /** Called after normal email notifications. No relay I/O in the lead request. */
 function ieb_sms_queue_lead($lead_id) {

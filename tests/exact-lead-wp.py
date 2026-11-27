@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Disposable WP/MySQL AJAX -> loopback signed relay -> fake SDK; no external mail or network."""
-import os, pathlib, subprocess, tempfile, json, socket, time
+import os, pathlib, subprocess, tempfile, json, socket, time, re
 root=pathlib.Path(__file__).resolve().parents[1]
 wp=pathlib.Path(os.environ['IEB_TEST_WP']).resolve(); cli=pathlib.Path(os.environ['IEB_WP_CLI']).resolve()
 if not str(wp).endswith('/ieb-sms-isolated-db/wp'): raise RuntimeError('disposable WP required')
 cfg=(wp/'wp-config.php').read_text()
 if "'ieb_test'" not in cfg or '/ieb-sms-isolated-db/mysql.sock' not in cfg or "'WP_HTTP_BLOCK_EXTERNAL', true" not in cfg: raise RuntimeError('unsafe fixture')
 source=(root/'tests/lead-unicode-wp.php').read_text()
+forms=json.loads(pathlib.Path(os.environ['IEB_LIVE_FORMS']).read_text())
+if [f['id'] for f in forms] != [3018,3320]: raise RuntimeError('actual Heritage form snapshots required')
+source=re.sub(r"    \$labels = .*?\n    update_post_meta\(\$form_id, '_hgm_form_data'", "    $formFixture=json_decode(file_get_contents(getenv('IEB_LIVE_FORMS')),true,32,JSON_THROW_ON_ERROR)[(int)getenv('IEB_FORM_INDEX')]; $steps=$formFixture['steps']; $labels=array_map(fn($step)=>$step['options'][0]['label'],$steps);\n    update_post_meta($form_id, '_hgm_form_data'", source, count=1, flags=re.S)
 payload=pathlib.Path(os.environ['IEB_CAPTURE_DIR'])/'payload.json'
 if not payload.is_file(): raise RuntimeError('capture actual form payload first')
 old_post=next(line for line in source.splitlines() if line.strip().startswith('$_POST = wp_slash('))
-source=source.replace(old_post, "    $captured=json_decode(file_get_contents(getenv('IEB_CAPTURE_DIR').'/payload.json'),true,16,JSON_THROW_ON_ERROR); $captured['nonce']=wp_create_nonce('hgm_nonce'); $captured['form_id']=(string)$form_id; $_POST=wp_slash($captured);")
+source=source.replace(old_post, "    $captured=json_decode(file_get_contents(getenv('IEB_CAPTURE_DIR').'/payload.json'),true,16,JSON_THROW_ON_ERROR); $captured['nonce']=wp_create_nonce('hgm_nonce'); $captured['form_id']=(string)$form_id; $captured['_hgm_form_data']=wp_json_encode($answers); $_POST=wp_slash($captured);")
 source=source.replace("if (!defined('HGM_PLUGIN_PATH')) { define('HGM_PLUGIN_PATH', dirname(__DIR__) . '/'); }", "if (!defined('HGM_PLUGIN_PATH')) { define('HGM_PLUGIN_PATH', "+repr(str(root)+'/')+"); }")
 setup=r'''
 define('IEB_SMS_RELAY_HOST','relay.example.test'); define('IEB_SMS_INSTALLATION','test_install'); define('IEB_SMS_SECRET',str_repeat('a',64)); define('IEB_SMS_EXACT_LEAD_FORMAT',true);
@@ -31,7 +34,7 @@ assertion=r'''
     $http=new class implements Twilio\Http\Client { public $sent=[]; public function request(string $method,string $url,array $params=[],array $data=[],array $headers=[],?string $user=null,?string $password=null,?int $timeout=null,?Twilio\AuthStrategy\AuthStrategy $authStrategy=null): Twilio\Http\Response { if ($method!=='POST') throw new RuntimeException('unexpected SDK call'); $this->sent[]=[$data['To'],$data['Body']]; return new Twilio\Http\Response(200,json_encode(['sid'=>'SM'.str_repeat(count($this->sent),32)])); } };
     $sdk=new Twilio\Rest\Client('AC'.str_repeat('a',32),'fake'); $sdk->setHttpClient($http); $fake=new IebTwilioAdapter($sdk,'+12025550199');
     check_ieb($queue->dispatchOne($fake,time())==='accepted' && $queue->dispatchOne($fake,time())==='accepted','fake SDK provider dispatch');
-    $expected="New __SERVICE__ Lead:\nTest\n\$7,700 - \$17,700\n(202) 555-0192\n61264";
+    $expected="New __SERVICE__ Lead:\nTest\n\$7,700 - \$17,700\n(202) 555-0192\n61264\nsupport@taggartmediagroup.com";
     check_ieb($http->sent===[[$phones[0],$expected],[$phones[1],$expected]],'exact bytes and callback for both');
     update_post_meta($lead_id,'_hgm_estimate_low','$9,999');
     check_ieb(ieb_sms_exact_lead($lead_id)===false,'wrong persisted estimate rejected, not invented');
@@ -44,13 +47,15 @@ if not (vendor/'autoload.php').is_file(): raise RuntimeError('Twilio SDK vendor 
 # The actual front controller requires its own vendor directory. The caller must
 # provide a local ignored copy/symlink, not modify a deployed relay.
 if not (root/'sms-relay/vendor/autoload.php').is_file(): raise RuntimeError('local relay vendor required')
-for title,service in [('Gutter Replacement','Gutter Replacement'),('Roofing Estimate','Roofing')]:
+for index,(title,service,low,high) in enumerate([('Gutter Replacement','Gutter Replacement','960','2,400'),('Roofing Estimate','Roofing','6,000','12,000')]):
+    assert forms[index]['title']==title
     text=source.replace("'post_title'=>'Unicode test'","'post_title'=>"+repr(title)).replace('    echo "PASS: WordPress-slashed AJAX request',assertion.replace('__SERVICE__',service)+'\n    echo "PASS: WordPress-slashed AJAX request')
+    text=text.replace('17,700',high).replace('7,700',low)
     with tempfile.TemporaryDirectory(dir=os.environ['TMPDIR']) as directory:
         directory=pathlib.Path(directory); db=directory/'relay.sqlite'; db.touch(); key=os.urandom(32).hex()
         config=directory/'config.json'; config.write_text(json.dumps({'database':str(db),'encryption_key':key,'installations':{'test_install':'a'*64},'exact_lead_installations':['test_install'],'live_send_enabled':False}))
         with socket.socket() as sock: sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]
-        env=dict(os.environ,IEB_RELAY_CONFIG=str(config),IEB_EXACT_DB=str(db),IEB_EXACT_KEY=key,IEB_EXACT_PORT=str(port))
+        env=dict(os.environ,IEB_FORM_INDEX=str(index),IEB_RELAY_CONFIG=str(config),IEB_EXACT_DB=str(db),IEB_EXACT_KEY=key,IEB_EXACT_PORT=str(port))
         with (directory/'server.log').open('w+') as log:
             server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t','sms-relay/public','sms-relay/public/index.php'],cwd=root,env=env,stdout=log,stderr=log)
             try:

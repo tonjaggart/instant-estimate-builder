@@ -152,13 +152,13 @@ final class IebSmsQueue {
         $exact=array_keys($lead) === ['name','phone','service','low','high','zip'];
         if (!$exact && array_keys($lead) !== ['name','phone','service']) throw new DomainException('Invalid lead');
         foreach ($lead as $value) if (!is_string($value) || trim($value)==='' || strlen($value)>160 || preg_match('/[\x00-\x1f\x7f]/', $value)) throw new DomainException('Invalid lead');
-        if ($exact ? ieb_sms_requested_preview($lead)===false : !$this->singleSegment($this->messageText($lead))) throw new DomainException('Message exceeds single segment or invalid');
+        if ($exact ? ieb_sms_pilot_six_line($lead)===false : !$this->singleSegment($this->messageText($lead))) throw new DomainException('Message exceeds single segment or invalid');
         $data=['recipient'=>$phone,'lead'=>$lead];
         $identity=json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         $payloadHash=hash_hmac('sha256',$identity,$this->hashKey);
         // Only new jobs needing compact text get a format marker. Old encrypted
         // jobs, including pre-fence oversized jobs, keep their original behavior.
-        if ($exact) $data['format']='exact-v1';
+        if ($exact) $data['format']='pilot-six-v1';
         elseif (!$this->singleSegment($this->legacyMessageText($lead))) $data['format']='compact-v1';
         $payload=json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         return $this->atomic(function() use ($id,$event,$hash,$payload,$payloadHash,$now,$requestId) {
@@ -236,7 +236,7 @@ final class IebSmsQueue {
             }
             $lead=$data['lead'];
             $format=$data['format']??null;
-            $message=$format==='exact-v1' ? ieb_sms_requested_preview($lead) : ($format==='compact-v1' ? $this->messageText($lead) : $this->legacyMessageText($lead));
+            $message=$format==='pilot-six-v1' ? ieb_sms_pilot_six_line($lead) : ($format==='exact-v1' ? false : ($format==='compact-v1' ? $this->messageText($lead) : $this->legacyMessageText($lead)));
             // Fence old queue rows created before the admission restriction too.
             if (!is_string($message) || !$this->singleSegment($message)) {
                 $this->query("UPDATE ieb_sms_messages SET state='failed',quota_month=NULL,ciphertext='' WHERE id=? AND state='unknown'",[$row['id']]); return 'failed';

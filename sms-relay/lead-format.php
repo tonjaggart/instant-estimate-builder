@@ -21,7 +21,7 @@ function ieb_sms_message_text(array $lead): string {
     if (ieb_sms_single_segment($legacy)) return $legacy;
     return 'Taggart: '.$lead['name'].' | '.$lead['phone'].' | '.$lead['service'].' support@taggartmediagroup.com';
 }
-/** Exact five-line formatter, separately gated for experimental use. */
+/** Original five-line preview; never send this preview without the pilot footer. */
 function ieb_sms_requested_preview(array $lead) {
     foreach (['name','phone','service','low','high','zip'] as $field) {
         if (!isset($lead[$field]) || !is_string($lead[$field]) || trim($lead[$field])==='' || strlen($lead[$field])>160 || !preg_match('//u',$lead[$field]) || preg_match('/[\x{0000}-\x{001f}\x{007f}-\x{009f}\x{2028}\x{2029}]/u',$lead[$field])) return false;
@@ -34,6 +34,13 @@ function ieb_sms_requested_preview(array $lead) {
     $service=trim(preg_replace('/\s+Estimate\s*$/iu','',$lead['service']));
     if ($service==='') return false;
     $text='New '.$service." Lead:\n".trim($lead['name'])."\n".$lead['low'].' - '.$lead['high']."\n".trim($lead['phone'])."\n".trim($lead['zip']);
+    return ieb_sms_single_segment($text) ? $text : false;
+}
+/** Heritage pilot: preserve all fields and include the required support contact. */
+function ieb_sms_pilot_six_line(array $lead) {
+    $text=ieb_sms_requested_preview($lead);
+    if ($text===false) return false;
+    $text.="\nsupport@taggartmediagroup.com";
     return ieb_sms_single_segment($text) ? $text : false;
 }
 /** Retain the complete phone; shorten name and service only, on UTF-8 boundaries. */

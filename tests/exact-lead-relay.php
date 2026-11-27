@@ -8,7 +8,7 @@ $lead=['name'=>'José','phone'=>'(202) 555-0192','service'=>'Roofing Estimate','
 foreach ($recipients as $n=>$phone) { $q->consent('test',$phone,'admin','synthetic',time()); ck_exact($q->enqueue('test','event_'.$n,$phone,$lead,time())==='queued','exact lead accepted'); }
 $sent=[]; $provider=function($to,$text) use (&$sent) { $sent[]=[$to,$text]; return 'accepted'; };
 foreach ($recipients as $n=>$phone) ck_exact($q->dispatchOne($provider,time())==='accepted','dispatch');
-$expected="New Roofing Lead:\nJosé\n\$14,900 - \$25,800\n(202) 555-0192\n00005";
+$expected="New Roofing Lead:\nJosé\n\$14,900 - \$25,800\n(202) 555-0192\n00005\nsupport@taggartmediagroup.com";
 ck_exact($sent===[[$recipients[0],$expected],[$recipients[1],$expected]],'exact bytes to both');
 $q->enqueue('test','event_cap',$recipients[0],$lead,time()); ck_exact($q->dispatchOne($provider,time())==='capped' && count($sent)===2,'monthly cap prevents provider call');
 $oversize=$lead; $oversize['name']=str_repeat('😀',40);

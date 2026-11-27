@@ -13,7 +13,7 @@ try:
     env=dict(os.environ,IEB_FAKE_PORT=str(server.server_port)); worker=root/'tests/sms-relay-twilio-worker.php'
     run=lambda: subprocess.run(['php',str(worker)],env=env,capture_output=True,text=True,check=True)
     res=run(); assert res.stdout=='accepted' and res.stderr=='', (res.stdout,res.stderr)
-    assert Fake.received[0]['To']==['+12025550101'] and Fake.received[0]['Body']==['Taggart Media Group - New estimate: Synthetic Name | +12025550102 | Test'] and Fake.received[0]['From']==['+12025550100']
+    assert Fake.received[0]['To']==['+12025550101'] and Fake.received[0]['Body']==['Taggart lead: Synthetic Name | +12025550102 | Test | support@taggartmediagroup.com'] and Fake.received[0]['From']==['+12025550100']
     Fake.status=500; res=run(); assert res.stdout=='unknown' and res.stderr=='', (res.stdout,res.stderr)
 finally: server.shutdown(); thread.join(); server.server_close()
 print('PASS: SDK adapter posts to loopback fake; ambiguous error stays unknown with no PII logs')

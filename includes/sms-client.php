@@ -382,6 +382,7 @@ function ieb_sms_render_settings() {
     echo '<input type="hidden" name="action" value="ieb_sms_enrollment"><input type="hidden" name="operation" value="request">';
     echo '<p><label for="ieb-sms-phone">Your mobile number</label><br><input id="ieb-sms-phone" name="phone" type="tel" autocomplete="tel" placeholder="10-digit mobile number" class="regular-text" required></p>';
     echo '<p><label><input type="checkbox" name="opt_in" value="1" required> I am the user of this number. I agree to receive recurring Instant Estimate Builder estimate-request text alerts from Taggart Media Group LLC at the mobile number I provide. Alerts may include lead contact details. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to unsubscribe.</label></p>';
+    echo '<p>For this pilot, replying HELP receives a generic carrier/provider response; for program support email support@taggartmediagroup.com. Reply STOP to unsubscribe.</p>';
     echo '<p><a href="https://taggartmediagroup.com/instant-estimate-builder-sms-alert-terms/">SMS Alert Terms</a> | <a href="https://taggartmediagroup.com/privacy-policy/">Privacy Policy</a>. Help: support@taggartmediagroup.com.</p>';
     echo '<button type="submit" class="button button-primary">Request verification code</button></form>';
     echo '</div>';

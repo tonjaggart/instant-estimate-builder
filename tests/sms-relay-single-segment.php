@@ -7,8 +7,8 @@ $db=new PDO('sqlite::memory:'); $key=random_bytes(32); $q=new IebSmsQueue($db,$k
 $q->configureInstallation('install_123',100,true);
 $phone='+15550000101'; $q->consent('install_123',$phone,'admin_1','notice-v1',1700000000);
 $lead=['name'=>'A','phone'=>'B','service'=>'C'];
-$base='Taggart Media Group - New estimate: A | B | ';
-$gsm=160-strlen($base)-2; // The two vertical bars in the fixed prefix are GSM extension characters.
+$base=ieb_sms_message_text(['name'=>'A','phone'=>'B','service'=>'']);
+$gsm=160-strlen($base)-substr_count($base,'|'); // Each vertical bar costs an extra GSM septet.
 $lead['service']=str_repeat('a',$gsm); $q->enqueue('install_123','gsm_160',$phone,$lead,1700000000);
 $lead['service']=str_repeat('a',$gsm+1); denied_segment(fn()=>$q->enqueue('install_123','gsm_161',$phone,$lead,1700000000),'161 GSM septets accepted');
 $lead['service']=str_repeat('^',intdiv($gsm,2)); $q->enqueue('install_123','extension_ok',$phone,$lead,1700000000);

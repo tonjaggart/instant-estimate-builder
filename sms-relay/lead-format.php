@@ -14,7 +14,7 @@ function ieb_sms_single_segment(string $message): bool {
     return $gsm ? $septets<=160 : $units<=70;
 }
 function ieb_sms_message_text(array $lead): string {
-    return 'Taggart Media Group - New estimate: '.$lead['name'].' | '.$lead['phone'].' | '.$lead['service'];
+    return 'Taggart lead: '.$lead['name'].' | '.$lead['phone'].' | '.$lead['service'].' | support@taggartmediagroup.com';
 }
 /** Retain the complete phone; shorten name and service only, on UTF-8 boundaries. */
 function ieb_sms_format_lead(array $lead) {

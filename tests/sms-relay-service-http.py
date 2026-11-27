@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR')) as d:
           sent=subprocess.run(['php',str(root/'tests/sms-relay-twilio-worker.php')],env=worker_env,capture_output=True,text=True,check=True)
           assert sent.stdout=='accepted' and not sent.stderr and len(Fake.requests)==1
           with sqlite3.connect(db) as conn: assert conn.execute("SELECT state FROM ieb_sms_messages WHERE event='event_1'").fetchone()==('accepted',)
-          payload=urllib.parse.parse_qs(Fake.requests[0].decode()); assert payload['Body'][0].startswith('Taggart Media Group - New estimate: SyntheticPrivateName')
+          payload=urllib.parse.parse_qs(Fake.requests[0].decode()); assert payload['Body'][0].startswith('Taggart lead: SyntheticPrivateName') and 'support@taggartmediagroup.com' in payload['Body'][0]
         finally: provider.shutdown(); thread.join(); provider.server_close()
         inbound={'From':phone,'To':sender,'Body':'STOP','MessageSid':'SM'+'1'*32,'AccountSid':account}
         assert hook(inbound,True)[0]==403; assert hook(inbound)[0]==200

@@ -53,7 +53,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR')) as d:
         assert signed('/v1/events',event)[0]==200 and signed('/v1/events',event,b)[0]==409
         dispatched=subprocess.run(['php','tests/sms-relay-twilio-worker.php'],cwd=root,env=dict(env,IEB_FAKE_PORT=str(provider.server_port),IEB_FAKE_EXISTING_DB='1'),capture_output=True,text=True,check=True)
         assert dispatched.stdout=='accepted' and not dispatched.stderr and len(Provider.requests)==2
-        assert Provider.requests[1]['To']==[phone] and 'Taggart Media Group - New estimate: Synthetic' in Provider.requests[1]['Body'][0]
+        assert Provider.requests[1]['To']==[phone] and 'Taggart lead: Synthetic' in Provider.requests[1]['Body'][0] and 'support@taggartmediagroup.com' in Provider.requests[1]['Body'][0]
         inbound={'From':phone,'To':sender,'Body':'STOP','MessageSid':'SM'+'1'*32,'AccountSid':account}
         sig=base64.b64encode(hmac.new(token.encode(),(hookurl+''.join(k+inbound[k] for k in sorted(inbound))).encode(),hashlib.sha1).digest()).decode()
         hook=urllib.request.Request(f'http://127.0.0.1:{servers[0][0]}/v1/twilio',data=urllib.parse.urlencode(inbound).encode(),headers={'Content-Type':'application/x-www-form-urlencoded','X-Twilio-Signature':sig},method='POST')

@@ -149,15 +149,17 @@ final class IebSmsQueue {
     function enqueue(string $id, string $event, string $phone, array $lead, int $now, ?string $requestId=null): string {
         $this->checkId($id); $this->checkId($event); $hash=$this->phash($phone);
         if ($requestId!==null && !preg_match('/\A[0-9a-f]{32}\z/D',$requestId)) throw new InvalidArgumentException('Invalid request id');
-        if (array_keys($lead) !== ['name','phone','service']) throw new DomainException('Invalid lead');
+        $exact=array_keys($lead) === ['name','phone','service','low','high','zip'];
+        if (!$exact && array_keys($lead) !== ['name','phone','service']) throw new DomainException('Invalid lead');
         foreach ($lead as $value) if (!is_string($value) || trim($value)==='' || strlen($value)>160 || preg_match('/[\x00-\x1f\x7f]/', $value)) throw new DomainException('Invalid lead');
-        if (!$this->singleSegment($this->messageText($lead))) throw new DomainException('Message exceeds single segment');
+        if ($exact ? ieb_sms_requested_preview($lead)===false : !$this->singleSegment($this->messageText($lead))) throw new DomainException('Message exceeds single segment or invalid');
         $data=['recipient'=>$phone,'lead'=>$lead];
         $identity=json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         $payloadHash=hash_hmac('sha256',$identity,$this->hashKey);
         // Only new jobs needing compact text get a format marker. Old encrypted
         // jobs, including pre-fence oversized jobs, keep their original behavior.
-        if (!$this->singleSegment($this->legacyMessageText($lead))) $data['format']='compact-v1';
+        if ($exact) $data['format']='exact-v1';
+        elseif (!$this->singleSegment($this->legacyMessageText($lead))) $data['format']='compact-v1';
         $payload=json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         return $this->atomic(function() use ($id,$event,$hash,$payload,$payloadHash,$now,$requestId) {
             $epoch=$this->query('SELECT epoch FROM ieb_sms_consent_epochs WHERE installation=? AND phone_hash=?',[$id,$hash])->fetchColumn();
@@ -233,9 +235,10 @@ final class IebSmsQueue {
                 $this->query("UPDATE ieb_sms_messages SET state='suppressed',quota_month=NULL,ciphertext='' WHERE id=? AND state='unknown'",[$row['id']]); return 'suppressed';
             }
             $lead=$data['lead'];
-            $message=($data['format']??null)==='compact-v1' ? $this->messageText($lead) : $this->legacyMessageText($lead);
+            $format=$data['format']??null;
+            $message=$format==='exact-v1' ? ieb_sms_requested_preview($lead) : ($format==='compact-v1' ? $this->messageText($lead) : $this->legacyMessageText($lead));
             // Fence old queue rows created before the admission restriction too.
-            if (!$this->singleSegment($message)) {
+            if (!is_string($message) || !$this->singleSegment($message)) {
                 $this->query("UPDATE ieb_sms_messages SET state='failed',quota_month=NULL,ciphertext='' WHERE id=? AND state='unknown'",[$row['id']]); return 'failed';
             }
             try { $result=$provider($data['recipient'],$message); } catch (Throwable $e) { $result='unknown'; }

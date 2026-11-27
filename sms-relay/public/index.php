@@ -31,7 +31,7 @@ try {
         [$status,$output]=$hook->handle($params,$_SERVER['HTTP_X_TWILIO_SIGNATURE']??''); header('Content-Type: application/xml; charset=utf-8');
     } else {
         if ($type!=='application/json') { http_response_code(415); exit; }
-        $api=new IebRelayApi($db,$queue,$c['installations'],new IebSmsVerification($db,hex2bin($c['encryption_key'])));
+        $api=new IebRelayApi($db,$queue,$c['installations'],new IebSmsVerification($db,hex2bin($c['encryption_key'])),is_array($c['exact_lead_installations']??null) ? $c['exact_lead_installations'] : []);
         [$status,$response]=$api->handle($method,$uri,['installation'=>$_SERVER['HTTP_X_INSTALLATION']??'','timestamp'=>$_SERVER['HTTP_X_TIMESTAMP']??'','nonce'=>$_SERVER['HTTP_X_NONCE']??'','signature'=>$_SERVER['HTTP_X_SIGNATURE']??''],$body,time());
         header('Content-Type: application/json; charset=utf-8'); $output=json_encode($response,JSON_THROW_ON_ERROR);
     }

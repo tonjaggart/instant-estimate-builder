@@ -234,6 +234,30 @@ function ieb_sms_event_id($lead_id,$recipient_id) {
     global $wpdb;
     return substr('lead_'.hash_hmac('sha256',$wpdb->postmeta.'|'.$lead_id.'|'.$recipient_id,hex2bin(IEB_SMS_SECRET)),0,64);
 }
+/** Exact mode is deliberately opt-in and must be explicitly enabled only after provider approval. */
+function ieb_sms_exact_lead($lead_id) {
+    $form=(int)get_post_meta($lead_id,'_hgm_form_id',true);
+    $steps=get_post_meta($form,'_hgm_form_data',true);
+    if (is_string($steps)) $steps=json_decode($steps,true);
+    $answers=get_post_meta($lead_id,'_hgm_form_data',true);
+    if (is_string($answers)) $answers=json_decode($answers,true);
+    if (!is_array($steps) || !$steps || !is_array($answers)) return false;
+    // Do not present partial or unrecognized answers as a real estimate.
+    foreach ($steps as $i=>$step) {
+        $options=$step['options']??[];
+        if (!is_array($options) || !$options) continue;
+        $label=$answers['step_'.($i+1)]['label']??null;
+        $matched=false;
+        foreach ($options as $option) if (is_string($label) && $label!=='' && $label===sanitize_text_field($option['label']??'')) { $matched=true; break; }
+        if (!$matched) return false;
+    }
+    $lead=['name'=>(string)get_post_meta($lead_id,'first_name',true),'phone'=>(string)get_post_meta($lead_id,'phone',true),'service'=>(string)get_the_title($form),'low'=>(string)get_post_meta($lead_id,'_hgm_estimate_low',true),'high'=>(string)get_post_meta($lead_id,'_hgm_estimate_high',true),'zip'=>(string)get_post_meta($lead_id,'zip_code',true)];
+    if (!function_exists('hgm_calculate_server_side_estimate')) return false;
+    $calculated=hgm_calculate_server_side_estimate($form,$answers);
+    if (empty($calculated['pricing_valid']) || !is_numeric($calculated['low_total']??null) || !is_numeric($calculated['high_total']??null) || $calculated['low_total']<0 || $calculated['high_total']<$calculated['low_total'] || $calculated['high_total']<=0) return false;
+    if ($lead['low']!=='$'.number_format((float)$calculated['low_total'],0) || $lead['high']!=='$'.number_format((float)$calculated['high_total'],0)) return false;
+    return ieb_sms_requested_preview($lead)===false ? false : $lead;
+}
 /** Called after normal email notifications. No relay I/O in the lead request. */
 function ieb_sms_queue_lead($lead_id) {
     if (!ieb_sms_configured()) return false;
@@ -256,7 +280,9 @@ function ieb_sms_queue_lead($lead_id) {
                 if ($id>0 && is_array($state) && ($state['status'] ?? '')==='verified' && !empty($state['request_id']) && !empty($state['phone'])) $eligible[$id]=$state;
             }
             if (!$eligible) return false;
-            $lead=ieb_sms_format_lead(['name'=>(string)get_post_meta($lead_id,'first_name',true),'phone'=>(string)get_post_meta($lead_id,'phone',true),'service'=>(string)get_the_title((int)get_post_meta($lead_id,'_hgm_form_id',true))]);
+            $lead=defined('IEB_SMS_EXACT_LEAD_FORMAT') && IEB_SMS_EXACT_LEAD_FORMAT===true
+                ? ieb_sms_exact_lead($lead_id)
+                : ieb_sms_format_lead(['name'=>(string)get_post_meta($lead_id,'first_name',true),'phone'=>(string)get_post_meta($lead_id,'phone',true),'service'=>(string)get_the_title((int)get_post_meta($lead_id,'_hgm_form_id',true))]);
             if ($lead===false) { ieb_sms_record_failure($lead_id,'format'); return false; }
             $created=time(); $jobs=[];
             foreach ($eligible as $id=>$state) {

@@ -1,8 +1,8 @@
 <?php
 /** Installation-authenticated API logic, independent of HTTP server. */
 final class IebRelayApi {
-    private $db; private $queue; private $keys; private $verification;
-    function __construct(PDO $db,IebSmsQueue $queue,array $keys,?IebSmsVerification $verification=null) { $this->db=$db; $this->queue=$queue; $this->keys=$keys; $this->verification=$verification; }
+    private $db; private $queue; private $keys; private $verification; private $exactInstallations;
+    function __construct(PDO $db,IebSmsQueue $queue,array $keys,?IebSmsVerification $verification=null,array $exactInstallations=[]) { $this->db=$db; $this->queue=$queue; $this->keys=$keys; $this->verification=$verification; $this->exactInstallations=$exactInstallations; }
     function handle(string $method,string $path,array $headers,string $body,int $now): array {
         if ($method!=='POST' || !in_array($path,['/v1/consent','/v1/revoke','/v1/events','/v1/verification/request','/v1/verification/confirm'],true)) return [404,['error'=>'not_found']];
         $id=$headers['installation']??''; $key=$this->keys[$id]??'';
@@ -28,7 +28,7 @@ final class IebRelayApi {
                 return $this->verification->confirm($id,$data['request_id'],$data['code'],$now) ? [200,['result'=>'verified']] : [409,['error'=>'not_allowed_or_conflict']];
             }
             elseif ($path==='/v1/revoke') { if (array_key_exists('request_id',$data) && !is_string($data['request_id'])) return [400,['error'=>'invalid_request']]; $this->queue->revoke($id,$data['phone'],$data['actor'],$now,$data['request_id']??null); $result='revoked'; }
-            else { $lead=$data['lead']; if (!is_string($data['request_id']) || !is_array($lead) || count($lead)!==3 || !isset($lead['name'],$lead['phone'],$lead['service'])) return [400,['error'=>'invalid_request']]; $result=$this->queue->enqueue($id,$data['event'],$data['phone'],['name'=>$lead['name'],'phone'=>$lead['phone'],'service'=>$lead['service']],$now,$data['request_id']); }
+            else { $lead=$data['lead']; if (!is_string($data['request_id']) || !is_array($lead)) return [400,['error'=>'invalid_request']]; $keys=array_keys($lead); sort($keys); if ($keys===['name','phone','service']) $lead=['name'=>$lead['name'],'phone'=>$lead['phone'],'service'=>$lead['service']]; elseif ($keys===['high','low','name','phone','service','zip'] && in_array($id,$this->exactInstallations,true)) $lead=['name'=>$lead['name'],'phone'=>$lead['phone'],'service'=>$lead['service'],'low'=>$lead['low'],'high'=>$lead['high'],'zip'=>$lead['zip']]; else return [400,['error'=>'invalid_request']]; $result=$this->queue->enqueue($id,$data['event'],$data['phone'],$lead,$now,$data['request_id']); }
             return [200,$path==='/v1/revoke' && isset($data['request_id']) ? ['result'=>$result,'generation_scoped_revoke'=>true] : ['result'=>$result]];
         } catch (DomainException $e) { return [409,['error'=>'not_allowed_or_conflict']]; }
         catch (JsonException|TypeError|InvalidArgumentException $e) { return [400,['error'=>'invalid_request']]; }

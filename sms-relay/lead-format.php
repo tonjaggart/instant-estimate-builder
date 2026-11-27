@@ -22,7 +22,7 @@ function ieb_sms_message_text(array $lead): string {
     return 'Taggart: '.$lead['name'].' | '.$lead['phone'].' | '.$lead['service'].' support@taggartmediagroup.com';
 }
 /** Original five-line preview; never send this preview without the pilot footer. */
-function ieb_sms_requested_preview(array $lead) {
+function ieb_sms_requested_text(array $lead) {
     foreach (['name','phone','service','low','high','zip'] as $field) {
         if (!isset($lead[$field]) || !is_string($lead[$field]) || trim($lead[$field])==='' || strlen($lead[$field])>160 || !preg_match('//u',$lead[$field]) || preg_match('/[\x{0000}-\x{001f}\x{007f}-\x{009f}\x{2028}\x{2029}]/u',$lead[$field])) return false;
     }
@@ -34,14 +34,65 @@ function ieb_sms_requested_preview(array $lead) {
     $service=trim(preg_replace('/\s+Estimate\s*$/iu','',$lead['service']));
     if ($service==='') return false;
     $text='New '.$service." Lead:\n".trim($lead['name'])."\n".$lead['low'].' - '.$lead['high']."\n".trim($lead['phone'])."\n".trim($lead['zip']);
-    return ieb_sms_single_segment($text) ? $text : false;
+    return $text;
+}
+function ieb_sms_requested_preview(array $lead) {
+    $text=ieb_sms_requested_text($lead);
+    return is_string($text) && ieb_sms_single_segment($text) ? $text : false;
+}
+/** US/Canada toll-free SMS, including concatenation overhead. */
+function ieb_sms_tollfree_segments(string $message) {
+    if (!preg_match('//u',$message)) return false;
+    $basic="@£\$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+    $extended="\f^{}\\[~]|€";
+    $chars=preg_split('//u',$message,-1,PREG_SPLIT_NO_EMPTY);
+    $gsm=true; $septets=0; $units=0;
+    foreach ($chars as $char) {
+        $units+=strlen($char)===4 ? 2 : 1;
+        if (strpos($basic,$char)!==false) ++$septets;
+        elseif (strpos($extended,$char)!==false) $septets+=2;
+        else $gsm=false;
+    }
+    if ($gsm ? $septets<=160 : $units<=70) return 1;
+    $limit=$gsm ? 152 : 66; $segments=1; $used=0;
+    foreach ($chars as $char) {
+        $size=$gsm ? (strpos($extended,$char)!==false ? 2 : 1) : (strlen($char)===4 ? 2 : 1);
+        if ($used+$size>$limit) { ++$segments; $used=0; }
+        $used+=$size;
+    }
+    return $segments;
+}
+/* Reserve for the more restrictive US Cellular split as well as toll-free UDH.
+ * Provider delivery can vary; this is an upper bound, not a billing receipt. */
+function ieb_sms_bounded_segments(string $message) {
+    $tollfree=ieb_sms_tollfree_segments($message);
+    if ($tollfree===false) return false;
+    $basic="@£\$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+    $extended="\f^{}\\[~]|€";
+    $chars=preg_split('//u',$message,-1,PREG_SPLIT_NO_EMPTY);
+    $gsm=true; $septets=0; $units=0;
+    foreach ($chars as $char) {
+        $units+=strlen($char)===4 ? 2 : 1;
+        if (strpos($basic,$char)!==false) ++$septets;
+        elseif (strpos($extended,$char)!==false) $septets+=2;
+        else $gsm=false;
+    }
+    if ($gsm ? $septets<=150 : $units<=70) return $tollfree;
+    $limit=$gsm ? 142 : 64; $segments=1; $used=0;
+    foreach ($chars as $char) {
+        $size=$gsm ? (strpos($extended,$char)!==false ? 2 : 1) : (strlen($char)===4 ? 2 : 1);
+        if ($used+$size>$limit) { ++$segments; $used=0; }
+        $used+=$size;
+    }
+    return max($segments,$tollfree);
 }
 /** Heritage pilot: preserve all fields and include the required support contact. */
 function ieb_sms_pilot_six_line(array $lead) {
-    $text=ieb_sms_requested_preview($lead);
+    $text=ieb_sms_requested_text($lead);
     if ($text===false) return false;
     $text.="\nsupport@taggartmediagroup.com";
-    return ieb_sms_single_segment($text) ? $text : false;
+    $segments=ieb_sms_bounded_segments($text);
+    return $segments!==false && $segments<=2 ? $text : false;
 }
 /** Retain the complete phone; shorten name and service only, on UTF-8 boundaries. */
 function ieb_sms_format_lead(array $lead) {

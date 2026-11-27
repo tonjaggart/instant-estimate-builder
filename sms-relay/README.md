@@ -21,10 +21,11 @@ while a six-line job exists. Unapproved experimental `exact-v1` jobs fail
 closed. This paragraph is not a complete deployment runbook.
 
 The formatter never truncates name, service, estimate, callback or ZIP: if any
-field is absent/invalid or the complete text exceeds one GSM or UTF-16 segment,
-the plugin records its existing privacy-safe `format` failure for admin review
-instead of sending. With the support footer, non-GSM names can readily exceed
-the 70 UTF-16-unit limit even when short; these alerts are not sent. The settings
+field is absent/invalid or the complete text exceeds the conservative two-segment
+bound, the plugin records its privacy-safe `format` failure for admin review
+instead of sending. The bound uses the more restrictive US Cellular limits as
+well as toll-free concatenation; that carrier may deliver separate numbered texts.
+The settings
 page shows only the most recent recorded issue, not an independent alert, so
 administrators must check it and the lead inbox. It rejects incomplete choices, unavailable/zero estimates,
 and saved values inconsistent with the server calculator; this means some
@@ -80,6 +81,29 @@ A unique `(installation, event, recipient)` and keyed payload hash persist acros
 
 ## Provider and STOP semantics
 
+This candidate adds a separate segment budget while retaining the existing alert
+cap. A privileged operator must explicitly configure a segment cap before a
+multi-segment alert can dispatch; the staging proposal is 200 segments per UTC
+month for Heritage, in addition to its unchanged alert cap. Claims reserve the
+carrier-conservative bound atomically before provider invocation; unknown sends
+retain their reservations, and historical claims without a reservation count as
+2. This is a protective upper bound, not an invoice or a delivery receipt.
+
+Run `IebSmsQueue::migrateSegmentSchema()` as a separate, explicitly controlled
+upgrade, not `install()` on a live database: the latter contains older migration
+logic that can alter legacy rows. The new migration creates two tables and a
+claim-guard trigger inside one SQLite write transaction, validates existing
+schema and is idempotent. The trigger blocks an old worker from making a fresh
+claim without a segment reservation, but cannot stop a request already claimed
+or in flight. Pause the Heritage bridge and relay lead-worker cron entries, wait
+out all staggered sleepers and in-flight workers, and require an empty unsettled
+queue before migration. Preserve the STOP/HELP webhook and other apps. Snapshot
+aggregate counts read-only, apply the schema and explicit cap, deploy and check
+all code and ACLs, then restore the exact paused entries. Never roll back to an
+old worker after admitting two-segment jobs. A deployment must also account for
+PHP-FPM/opcache and verify the actual staging runtime. The guard is not a
+substitute for draining. No live send is needed for verification.
+
 `worker.php` is CLI-only and processes at most one alert. `verification-worker.php` is a separate CLI-only worker and needs both `live_send_enabled` and `verification_send_enabled` to be explicit JSON `true`. Both are disabled by default; **do not enable them now**. When enabled, they use Twilio's official SDK with HTTPS, a 2-second connect and 4-second total timeout. A valid provider message SID is recorded as `accepted`, not delivered. All exceptions and uncertain responses become `unknown` and are **never automatically retried**, including HTTP errors; alert attempts reserve quota and operators need a reviewed reconciliation procedure. Before any provider invocation the queue commits `unknown`, so process death or database commit failure after a possible send cannot generate an automatic duplicate. Capped alerts are terminal and caps count accepted/unknown alert attempts by UTC month, not billed SMS segments.
 
 Final consent, enabled status and suppression are checked in a SQLite `BEGIN IMMEDIATE` transaction that remains locked across the bounded provider call and result commit. STOP, local revoke and entitlement updates use the same database write lock. Thus a STOP that commits first prevents the later dispatch; if the dispatch wins, STOP cannot commit/acknowledge until the provider call releases the lock. This is a linearization guarantee on this one database, **not a guarantee against a send already in flight**, and it cannot determine the instant Twilio or a carrier received the original STOP. When the database is busy, webhook errors return 503 rather than falsely acknowledging suppression; configure and verify provider retry/alerting and reconcile failures. Holding a global SQLite write lock over network I/O limits throughput and can delay or fail inbound STOP; no production load, failover or provider retry behavior has been verified.
@@ -100,7 +124,7 @@ Tests include WordPress API stubs and synthetic data: `php tests/wp-sms-client.p
 
 ## Local verification
 
-Experimental offline safeguards: alerts use a single-segment limit (160 GSM 03.38 septets, including two-septet extension characters, or 70 UTF-16 units for other text). The WordPress client preserves the full lead phone while shortening name and service to fit; unformattable leads and relay rejection/expiry are recorded without lead details and the most recent issue is shown in SMS settings. That display is not delivery monitoring: only relay acceptance is known, and provider-side failure remains invisible to WordPress. Claimed alerts erase ciphertext before the provider call and restore it only after a definite retryable outcome. Admission limits queued/retry alerts to 100 per installation and 1,000 globally; new alerts expire after one hour. Migration gives legacy alerts an expiry of zero, so they cannot be sent. Verification admission silently rejects before insert after 3 per phone, 20 per installation or 200 globally per hour; verification sends reserve a preliminary UTC-month budget of 20 per installation and 200 globally before the call, including uncertain outcomes. These are not approved financial limits. Stop and drain all old workers and API processes before migration and keep them stopped until the new schema and code are installed: migration expires legacy queued verifications and charges all legacy verification rows to the migration month because their actual send times are unknown. Migration, concurrency, and financial assumptions require independent review.
+Experimental offline safeguards: non-pilot compact alerts retain a single-segment limit (160 GSM 03.38 septets, including two-septet extension characters, or 70 UTF-16 units for other text); the Heritage pilot uses the separately bounded two-segment format described above. The WordPress client preserves the full lead phone while shortening name and service to fit; unformattable leads and relay rejection/expiry are recorded without lead details and the most recent issue is shown in SMS settings. That display is not delivery monitoring: only relay acceptance is known, and provider-side failure remains invisible to WordPress. Claimed alerts erase ciphertext before the provider call and restore it only after a definite retryable outcome. Admission limits queued/retry alerts to 100 per installation and 1,000 globally; new alerts expire after one hour. Migration gives legacy alerts an expiry of zero, so they cannot be sent. Verification admission silently rejects before insert after 3 per phone, 20 per installation or 200 globally per hour; verification sends reserve a preliminary UTC-month budget of 20 per installation and 200 globally before the call, including uncertain outcomes. These are not approved financial limits. Stop and drain all old workers and API processes before migration and keep them stopped until the new schema and code are installed: migration expires legacy queued verifications and charges all legacy verification rows to the migration month because their actual send times are unknown. Migration, concurrency, and financial assumptions require independent review.
 
 `php sms-relay/maintenance.php` runs one bounded pass using `IEB_RELAY_CONFIG` and cannot send SMS; it also works with sending disabled. It is **not automatically scheduled**. An operator would need a monitored, frequent external cron/systemd timer and backlog monitoring; even then no strict maximum age is guaranteed under overload or downtime. One call processes up to 100 expired queued alerts, 100 expired uncertain claims, 100 terminal ciphertexts and 100 expired verification records. The latter lose their phone hash, actor, notice, code hash and ciphertext after at least an hour while a keyed request fingerprint is retained to prevent replay. Alert idempotency keys, audit/consent/suppression records, verification tombstones and budget rows remain; the WordPress outbox is unaffected. These gaps mean PII and storage are not comprehensively bounded. Retention of idempotency records needs an explicitly approved TTL and acknowledgement that replays can be accepted after expiry; do not delete consent, suppression or revocation evidence without an approved policy. Deletion from SQLite does not ensure erasure from free pages, WAL/journals, backups, logs or providers. Do not deploy or send; independently review migration, quotas, retention, in-flight races and data deletion first. **This is not release approval.**
 

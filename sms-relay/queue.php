@@ -37,6 +37,9 @@ final class IebSmsQueue {
         }
         $this->db->exec('CREATE INDEX IF NOT EXISTS ieb_sms_verification_budget_month ON ieb_sms_verification_budget(month,installation)');
         $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, installation TEXT NOT NULL, event TEXT NOT NULL, phone_hash TEXT NOT NULL, payload_hash TEXT NOT NULL, ciphertext TEXT NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, due_at INTEGER NOT NULL, quota_month TEXT, UNIQUE(installation,event,phone_hash))');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_message_segments (message_id INTEGER PRIMARY KEY, segments INTEGER NOT NULL CHECK(segments BETWEEN 1 AND 2))');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_segment_caps (installation TEXT PRIMARY KEY, monthly_cap INTEGER NOT NULL CHECK(monthly_cap>0))');
+        $this->installSegmentGuard();
         $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_consent_epochs (installation TEXT NOT NULL, phone_hash TEXT NOT NULL, epoch TEXT NOT NULL, PRIMARY KEY(installation,phone_hash))');
         $this->db->exec('CREATE TABLE IF NOT EXISTS ieb_sms_message_epochs (message_id INTEGER PRIMARY KEY, epoch TEXT NOT NULL)');
         $this->db->exec("CREATE TABLE IF NOT EXISTS ieb_sms_delivery (message_id INTEGER PRIMARY KEY, sid TEXT NOT NULL UNIQUE, status TEXT NOT NULL, created_at INTEGER NOT NULL, next_poll INTEGER NOT NULL, lookup_failures INTEGER NOT NULL DEFAULT 0)");
@@ -52,6 +55,31 @@ final class IebSmsQueue {
         $this->db->exec("CREATE INDEX IF NOT EXISTS ieb_sms_terminal_payload ON ieb_sms_messages(id) WHERE ciphertext<>'' AND state NOT IN ('queued','retry')");
         });
     }
+    /** Explicit additive upgrade only. Never runs legacy install-time cleanup. */
+    function migrateSegmentSchema(): void {
+        $this->atomic(function() {
+            $required=['ieb_sms_messages'=>['id','installation','state','quota_month'], 'ieb_sms_installations'=>['id','monthly_cap','enabled']];
+            foreach ($required as $table=>$columns) {
+                $actual=array_column($this->db->query('PRAGMA table_info('.$table.')')->fetchAll(PDO::FETCH_ASSOC),'name');
+                foreach ($columns as $column) if (!in_array($column,$actual,true)) throw new RuntimeException('Incompatible relay schema');
+            }
+            foreach ([
+                'ieb_sms_message_segments'=>'CREATE TABLE ieb_sms_message_segments (message_id INTEGER PRIMARY KEY, segments INTEGER NOT NULL CHECK(segments BETWEEN 1 AND 2))',
+                'ieb_sms_segment_caps'=>'CREATE TABLE ieb_sms_segment_caps (installation TEXT PRIMARY KEY, monthly_cap INTEGER NOT NULL CHECK(monthly_cap>0))'
+            ] as $name=>$ddl) {
+                $existing=$this->query("SELECT sql FROM sqlite_master WHERE type='table' AND name=?",[$name])->fetchColumn();
+                if ($existing===false) $this->db->exec($ddl);
+                elseif (preg_replace('/\s+/',' ',trim($existing))!==$ddl) throw new RuntimeException('Incompatible segment schema');
+            }
+            $this->installSegmentGuard();
+        });
+    }
+    private function installSegmentGuard(): void {
+        $sql="CREATE TRIGGER ieb_sms_segment_claim_guard BEFORE UPDATE OF state ON ieb_sms_messages WHEN NEW.state='unknown' AND OLD.state IN ('queued','retry') AND NOT EXISTS (SELECT 1 FROM ieb_sms_message_segments WHERE message_id=NEW.id) BEGIN SELECT RAISE(ABORT, 'segment reservation required'); END";
+        $existing=$this->query("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='ieb_sms_segment_claim_guard'")->fetchColumn();
+        if ($existing===false) $this->db->exec($sql);
+        elseif (preg_replace('/\s+/',' ',trim($existing))!==$sql) throw new RuntimeException('Incompatible segment guard');
+    }
     private function checkId($id): void { if (!is_string($id) || !preg_match('/\A[a-zA-Z0-9_-]{1,64}\z/D', $id)) throw new DomainException('Invalid identifier'); }
     private function phash($phone): string {
         if (!is_string($phone) || !preg_match('/\A\+[1-9][0-9]{7,14}\z/D', $phone)) throw new DomainException('Invalid phone');
@@ -66,6 +94,10 @@ final class IebSmsQueue {
     function configureInstallation(string $id, int $cap, bool $enabled): void {
         $this->checkId($id); if ($cap < 1) throw new DomainException('Cap required');
         $this->query('INSERT INTO ieb_sms_installations VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET monthly_cap=excluded.monthly_cap,enabled=excluded.enabled', [$id,$cap,(int)$enabled]);
+    }
+    function configureSegmentCap(string $id, int $cap): void {
+        $this->checkId($id); if ($cap<1) throw new DomainException('Cap required');
+        $this->query('INSERT INTO ieb_sms_segment_caps VALUES (?,?) ON CONFLICT(installation) DO UPDATE SET monthly_cap=excluded.monthly_cap',[$id,$cap]);
     }
     function consent(string $id, string $phone, string $actor, string $notice, int $now): bool {
         $this->checkId($id); $this->checkId($actor); $this->checkId($notice); $hash = $this->phash($phone);
@@ -152,7 +184,7 @@ final class IebSmsQueue {
         $exact=array_keys($lead) === ['name','phone','service','low','high','zip'];
         if (!$exact && array_keys($lead) !== ['name','phone','service']) throw new DomainException('Invalid lead');
         foreach ($lead as $value) if (!is_string($value) || trim($value)==='' || strlen($value)>160 || preg_match('/[\x00-\x1f\x7f]/', $value)) throw new DomainException('Invalid lead');
-        if ($exact ? ieb_sms_pilot_six_line($lead)===false : !$this->singleSegment($this->messageText($lead))) throw new DomainException('Message exceeds single segment or invalid');
+        if ($exact ? ieb_sms_pilot_six_line($lead)===false : !$this->singleSegment($this->messageText($lead))) throw new DomainException('Message exceeds allowed segment limit or is invalid');
         $data=['recipient'=>$phone,'lead'=>$lead];
         $identity=json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         $payloadHash=hash_hmac('sha256',$identity,$this->hashKey);
@@ -214,6 +246,32 @@ final class IebSmsQueue {
             $cap=(int)$this->query('SELECT monthly_cap FROM ieb_sms_installations WHERE id=?',[$row['installation']])->fetchColumn();
             $used=(int)$this->query("SELECT COUNT(*) FROM ieb_sms_messages WHERE installation=? AND quota_month=? AND state IN ('unknown','expired_unknown','accepted')",[$row['installation'],$month])->fetchColumn();
             if ($used >= $cap) { $this->query("UPDATE ieb_sms_messages SET state='capped',ciphertext='' WHERE id=?",[$row['id']]); return ['result'=>'capped']; }
+            // Inspect under the lock. On invalid ciphertext reserve the maximum;
+            // uncertain claims must never escape the segment budget.
+            $segments=2; $raw=base64_decode($row['ciphertext'],true);
+            if ($raw!==false && strlen($raw)>=SODIUM_CRYPTO_SECRETBOX_NONCEBYTES+SODIUM_CRYPTO_SECRETBOX_MACBYTES) {
+                $plain=sodium_crypto_secretbox_open(substr($raw,SODIUM_CRYPTO_SECRETBOX_NONCEBYTES),substr($raw,0,SODIUM_CRYPTO_SECRETBOX_NONCEBYTES),$this->key);
+                $data=$plain===false ? null : json_decode($plain,true);
+                if (is_array($data) && isset($data['lead']) && is_array($data['lead'])) {
+                    $format=$data['format']??null; $lead=$data['lead'];
+                    if ($format==='pilot-six-v1') {
+                        $message=ieb_sms_pilot_six_line($lead);
+                        if (!is_string($message)) { $this->query("UPDATE ieb_sms_messages SET state='failed',ciphertext='' WHERE id=?",[$row['id']]); return ['result'=>'failed']; }
+                        $count=ieb_sms_bounded_segments($message); if (is_int($count) && $count<=2) $segments=$count;
+                    } else {
+                        $message=$format==='exact-v1' ? false : ($format==='compact-v1' ? $this->messageText($lead) : $this->legacyMessageText($lead));
+                        if (!is_string($message) || !$this->singleSegment($message)) { $this->query("UPDATE ieb_sms_messages SET state='failed',ciphertext='' WHERE id=?",[$row['id']]); return ['result'=>'failed']; }
+                        $count=ieb_sms_bounded_segments($message);
+                        if (is_int($count) && $count<=2) $segments=$count;
+                    }
+                }
+            }
+            $segmentCap=$this->query('SELECT monthly_cap FROM ieb_sms_segment_caps WHERE installation=?',[$row['installation']])->fetchColumn();
+            if ($segmentCap===false && $segments>1) { $this->query("UPDATE ieb_sms_messages SET state='capped',ciphertext='' WHERE id=?",[$row['id']]); return ['result'=>'capped']; }
+            if ($segmentCap===false) $segmentCap=2*$cap;
+            $segmentUsed=(int)$this->query("SELECT COALESCE(SUM(COALESCE(s.segments,2)),0) FROM ieb_sms_messages m LEFT JOIN ieb_sms_message_segments s ON s.message_id=m.id WHERE m.installation=? AND m.quota_month=? AND m.state IN ('unknown','expired_unknown','accepted')",[$row['installation'],$month])->fetchColumn();
+            if ($segmentUsed+$segments>(int)$segmentCap) { $this->query("UPDATE ieb_sms_messages SET state='capped',ciphertext='' WHERE id=?",[$row['id']]); return ['result'=>'capped']; }
+            $this->query('INSERT INTO ieb_sms_message_segments VALUES (?,?) ON CONFLICT(message_id) DO UPDATE SET segments=excluded.segments',[$row['id'],$segments]);
             // Mark uncertain and reserve quota BEFORE calling provider. A crash cannot trigger an automatic retry.
             $this->query("UPDATE ieb_sms_messages SET state='unknown', ciphertext='', quota_month=?, attempts=attempts+1 WHERE id=?",[$month,$row['id']]);
             return ['result'=>'claimed','row'=>$row];
@@ -238,7 +296,7 @@ final class IebSmsQueue {
             $format=$data['format']??null;
             $message=$format==='pilot-six-v1' ? ieb_sms_pilot_six_line($lead) : ($format==='exact-v1' ? false : ($format==='compact-v1' ? $this->messageText($lead) : $this->legacyMessageText($lead)));
             // Fence old queue rows created before the admission restriction too.
-            if (!is_string($message) || !$this->singleSegment($message)) {
+            if (!is_string($message) || ($format==='pilot-six-v1' ? ieb_sms_bounded_segments($message)>2 : !$this->singleSegment($message))) {
                 $this->query("UPDATE ieb_sms_messages SET state='failed',quota_month=NULL,ciphertext='' WHERE id=? AND state='unknown'",[$row['id']]); return 'failed';
             }
             try { $result=$provider($data['recipient'],$message); } catch (Throwable $e) { $result='unknown'; }
@@ -252,7 +310,12 @@ final class IebSmsQueue {
             if ($result==='accepted') $this->query("UPDATE ieb_sms_messages SET state='accepted' WHERE id=? AND state='unknown'",[$row['id']]);
             if ($result==='retryable') {
                 if ((int)$row['attempts']+1 >= 3) $this->query("UPDATE ieb_sms_messages SET state='failed',quota_month=NULL WHERE id=? AND state='unknown'",[$row['id']]);
-                else $this->query("UPDATE ieb_sms_messages SET state='retry',ciphertext=?,quota_month=NULL,due_at=? WHERE id=? AND state='unknown'",[$row['ciphertext'],$now+60,$row['id']]);
+                else {
+                    $this->query("UPDATE ieb_sms_messages SET state='retry',ciphertext=?,quota_month=NULL,due_at=? WHERE id=? AND state='unknown'",[$row['ciphertext'],$now+60,$row['id']]);
+                    // A later claim must make a fresh reservation; otherwise an
+                    // older worker could reuse this released one and bypass caps.
+                    $this->query('DELETE FROM ieb_sms_message_segments WHERE message_id=?',[$row['id']]);
+                }
             }
             return $result;
         });

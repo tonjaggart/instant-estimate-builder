@@ -1218,7 +1218,11 @@
 }
 
 .ieb-lead-trash-confirm {
+    min-height: 0;
     margin-bottom: 20px;
+}
+
+.ieb-lead-trash-confirm #ieb-trash-title {
     scroll-margin-top: 48px;
 }
 
@@ -1230,6 +1234,19 @@
 
 .ieb-lead-trash-confirm .button {
     min-height: 44px;
+}
+
+.ieb-lead-trash-confirm .hgm-button-secondary.button {
+    color: #1d4ed8;
+    background: #fff;
+    border-color: #94a3b8;
+}
+
+.ieb-lead-trash-confirm .hgm-button-secondary.button:hover,
+.ieb-lead-trash-confirm .hgm-button-secondary.button:focus {
+    color: #1e40af;
+    background: #eff6ff;
+    border-color: #1d4ed8;
 }
 
 .ieb-leads-empty {
